@@ -13,6 +13,7 @@ const Analyze = () => {
   const [fileName, setFileName] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
 
   // Handle file selection
   const handleFileChange = (e) => {
@@ -29,14 +30,14 @@ const Analyze = () => {
   };
 
   // Handle analyze submission
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     const content = inputType === 'url' ? urlInput : textInput;
     
     if (!content.trim()) {
-      alert('Please provide content to analyze');
+      setError('Please provide content to analyze');
       return;
     }
-
+    setError('');
     setIsAnalyzing(true);
 
     // Simulate analysis (placeholder)
