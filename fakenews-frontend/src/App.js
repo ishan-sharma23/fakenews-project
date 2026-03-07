@@ -17,6 +17,7 @@ import Register from './pages/Register';
 import Team from './pages/Team';
 import Analyze from './pages/Analyze';
 import About from './pages/About';
+import Trending from './pages/Trending';
 
 // Google OAuth Client ID (from environment variables)
 const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID || 'YOUR_GOOGLE_CLIENT_ID';
@@ -44,6 +45,7 @@ function App() {
                 <Route path="/analyze" element={<Analyze />} />
                 <Route path="/history" element={<History />} />
                 <Route path="/about" element={<About />} />
+                <Route path="/trending" element={<Trending />} />
                 <Route path="/team" element={<Team />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />

@@ -112,4 +112,20 @@ export const analyzeAPI = {
   }
 };
 
+// ============ TRENDING API ============
+
+export const trendingAPI = {
+  // Get trending news with analysis
+  getTrending: async () => {
+    const response = await api.get('/trending');
+    return response.data;
+  },
+
+  // Force refresh trending news
+  refresh: async (query) => {
+    const response = await api.post('/trending/refresh', { query });
+    return response.data;
+  }
+};
+
 export default api;

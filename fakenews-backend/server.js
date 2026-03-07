@@ -5,6 +5,7 @@ const connectDB = require('./config/db');
 const http = require('http');
 const socketIO = require('socket.io');
 const { initializeSocketEvents } = require('./services/socketEvents');
+const { startScheduler } = require('./services/newsFetcher');
 
 // Load environment variables
 dotenv.config();
@@ -52,6 +53,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/analyze', require('./routes/analyze'));
+app.use('/api/trending', require('./routes/trending'));
 
 // Health check route
 app.get('/', (req, res) => {
@@ -67,4 +69,6 @@ server.listen(PORT, () => {
   if (process.env.GOOGLE_CLIENT_ID) {
     console.log(`Google Client ID: ${process.env.GOOGLE_CLIENT_ID.substring(0, 20)}...`);
   }
+  // Start news fetcher scheduler
+  startScheduler(io);
 });

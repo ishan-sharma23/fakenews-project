@@ -46,6 +46,12 @@ const Navbar = () => {
             Analyze
           </Link>
           <Link 
+            to="/trending" 
+            className={`nav-link ${isActive('/trending') ? 'active' : ''}`}
+          >
+            Trending
+          </Link>
+          <Link 
             to="/history" 
             className={`nav-link ${isActive('/history') ? 'active' : ''}`}
           >
