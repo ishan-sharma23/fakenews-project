@@ -14,3 +14,8 @@ dist/
 # OS files
 .DS_Store
 Thumbs.db
+# ML artifacts (keep local, do not track)
+fakenews-ml/data/WELFake_Dataset.csv
+fakenews-ml/model/*.pkl
+fakenews-ml/model/__pycache__/
+*.pyc

@@ -21,6 +21,14 @@ const userSchema = new mongoose.Schema({
     minlength: 6,
     select: false
   },
+  googleId: {
+    type: String,
+    unique: true,
+    sparse: true // Allows multiple null values
+  },
+  avatar: {
+    type: String
+  },
   createdAt: {
     type: Date,
     default: Date.now

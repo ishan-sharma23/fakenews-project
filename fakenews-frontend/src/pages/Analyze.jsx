@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { analyzeAPI } from '../services/api';
 
 /**
  * Analyze Page
  * - Advanced analysis with multiple input options
  * - URL input, text input, file upload
- * - Detailed analysis results
+ * - Detailed analysis results using ML backend (Voting Classifier + NLP + RF)
  */
 const Analyze = () => {
+  const { isAuthenticated } = useAuth();
   const [inputType, setInputType] = useState('text'); // 'text', 'url', 'file'
   const [textInput, setTextInput] = useState('');
   const [urlInput, setUrlInput] = useState('');
@@ -20,7 +23,7 @@ const Analyze = () => {
     const file = e.target.files[0];
     if (file) {
       setFileName(file.name);
-      // Read file content (for demo)
+      // Read file content
       const reader = new FileReader();
       reader.onload = (event) => {
         setTextInput(event.target.result);
@@ -29,7 +32,7 @@ const Analyze = () => {
     }
   };
 
-  // Handle analyze submission
+  // Handle analyze submission - calls real backend API
   const handleAnalyze = async () => {
     const content = inputType === 'url' ? urlInput : textInput;
     
@@ -37,28 +40,38 @@ const Analyze = () => {
       setError('Please provide content to analyze');
       return;
     }
+
+    if (content.length < 50) {
+      setError('Please provide at least 50 characters for accurate analysis');
+      return;
+    }
+
     setError('');
     setIsAnalyzing(true);
 
-    // Simulate analysis (placeholder)
-    setTimeout(() => {
+    try {
+      // Call backend API (which uses ML Voting Classifier + NLP + RF)
+      const data = await analyzeAPI.analyze(content, inputType);
+      
       setResult({
-        prediction: Math.random() > 0.5 ? 'FAKE' : 'REAL',
-        confidence: Math.floor(Math.random() * 25) + 75,
+        prediction: data.prediction,
+        confidence: data.confidence,
         details: {
-          sentimentScore: (Math.random() * 2 - 1).toFixed(2),
-          objectivityScore: Math.floor(Math.random() * 100),
-          clickbaitScore: Math.floor(Math.random() * 100),
-          sourceCredibility: Math.floor(Math.random() * 40) + 60,
-          flags: [
-            'Emotional language detected',
-            'Missing source citations',
-            'Sensationalist headline pattern'
-          ].slice(0, Math.floor(Math.random() * 3) + 1)
+          sentimentScore: data.details?.sentimentScore || 0,
+          objectivityScore: data.details?.objectivityScore || 0,
+          clickbaitScore: data.details?.clickbaitScore || 0,
+          sourceCredibility: data.details?.sourceCredibility || 0,
+          flags: data.details?.flags || [],
+          votes: data.details?.votes || {},
+          probabilities: data.details?.probabilities || {}
         }
       });
+    } catch (err) {
+      console.error('Analysis error:', err);
+      setError(err.response?.data?.message || 'Analysis failed. Please try again.');
+    } finally {
       setIsAnalyzing(false);
-    }, 2500);
+    }
   };
 
   // Reset analysis
@@ -150,6 +163,13 @@ const Analyze = () => {
               )}
             </div>
 
+            {/* Error display */}
+            {error && (
+              <div className="error-message" style={{ marginBottom: '1rem', color: '#dc3545', padding: '1rem', background: '#ffe6e6', borderRadius: '8px' }}>
+                {error}
+              </div>
+            )}
+
             {/* Analyze Button */}
             <button
               className="analyze-btn"
@@ -188,6 +208,29 @@ const Analyze = () => {
                 <span className="confidence-value">{result.confidence}%</span>
               </div>
             </div>
+
+            {/* Voting Classifier Results */}
+            {result.details.votes && Object.keys(result.details.votes).length > 0 && (
+              <div className="votes-section" style={{ marginTop: '1.5rem', padding: '1rem', background: '#f8f9fa', borderRadius: '8px' }}>
+                <h3 style={{ marginBottom: '1rem' }}>🗳️ Voting Classifier Results</h3>
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div className="vote-card" style={{ padding: '0.5rem 1rem', background: result.details.votes.rf === 'FAKE' ? '#ffe6e6' : '#e6ffe6', borderRadius: '4px' }}>
+                    <strong>Random Forest:</strong> {result.details.votes.rf}
+                  </div>
+                  <div className="vote-card" style={{ padding: '0.5rem 1rem', background: result.details.votes.lr === 'FAKE' ? '#ffe6e6' : '#e6ffe6', borderRadius: '4px' }}>
+                    <strong>Logistic Regression:</strong> {result.details.votes.lr}
+                  </div>
+                  <div className="vote-card" style={{ padding: '0.5rem 1rem', background: result.details.votes.nb === 'FAKE' ? '#ffe6e6' : '#e6ffe6', borderRadius: '4px' }}>
+                    <strong>Naive Bayes:</strong> {result.details.votes.nb}
+                  </div>
+                </div>
+                {result.details.probabilities && (
+                  <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: '#666' }}>
+                    Probability: {(result.details.probabilities.fake * 100).toFixed(1)}% Fake, {(result.details.probabilities.real * 100).toFixed(1)}% Real
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Detailed Metrics */}
             <div className="metrics-grid">

@@ -2,63 +2,69 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import NewsChecker from '../components/NewsChecker';
 import ResultDisplay from '../components/ResultDisplay';
+import { useAuth } from '../context/AuthContext';
+import { analyzeAPI } from '../services/api';
 
 /**
  * Home Page
  * - Main page with NewsChecker and ResultDisplay
  * - Manages state for checking news
  * - Character limit feature: guests have 500 chars, logged in users get 5000
+ * - Uses real backend API with Voting Classifier + NLP + RF
  */
 const Home = () => {
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [modalReason, setModalReason] = useState('trial'); // 'trial' or 'limit'
   
-  // Simulated auth state (replace with actual auth context later)
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  
   // Trial tracking for guests (persisted in localStorage)
-  const FREE_TRIALS = 2;
+  const FREE_TRIALS = 5;
   const getTrialCount = () => parseInt(localStorage.getItem('trialCount') || '0');
   const [trialCount, setTrialCount] = useState(getTrialCount());
   
   // Character limits
   const GUEST_CHAR_LIMIT = 500;
   const USER_CHAR_LIMIT = 5000;
-  const currentLimit = isLoggedIn ? USER_CHAR_LIMIT : GUEST_CHAR_LIMIT;
+  const currentLimit = isAuthenticated ? USER_CHAR_LIMIT : GUEST_CHAR_LIMIT;
 
-  // Simulate checking news (placeholder - no actual API call)
-  const handleCheck = (text) => {
+  // Check news using real backend API
+  const handleCheck = async (text) => {
     // Check if guest has exceeded trial limit
-    if (!isLoggedIn && trialCount >= FREE_TRIALS) {
+    if (!isAuthenticated && trialCount >= FREE_TRIALS) {
       setModalReason('trial');
       setShowLoginModal(true);
       return;
     }
     
     setIsLoading(true);
+    setError('');
     
-    // Simulate API delay (2 seconds)
-    setTimeout(() => {
-      // Sample result for testing UI
-      // In future, this will be replaced with actual API call
-      const sampleResult = {
-        prediction: Math.random() > 0.5 ? 'FAKE' : 'REAL',
-        confidence: Math.floor(Math.random() * 30) + 70 // Random 70-100
-      };
+    try {
+      // Call real backend API (uses ML Voting Classifier + NLP + RF)
+      const data = await analyzeAPI.analyze(text, 'text');
       
-      setResult(sampleResult);
-      setIsLoading(false);
+      setResult({
+        prediction: data.prediction,
+        confidence: data.confidence,
+        details: data.details
+      });
       
       // Increment trial count for guests
-      if (!isLoggedIn) {
+      if (!isAuthenticated) {
         const newCount = trialCount + 1;
         setTrialCount(newCount);
         localStorage.setItem('trialCount', newCount.toString());
       }
-    }, 2000);
+    } catch (err) {
+      console.error('Analysis error:', err);
+      setError(err.response?.data?.message || 'Analysis failed. Make sure backend is running.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // Reset to check another article
@@ -93,7 +99,7 @@ const Home = () => {
             Powered by AI and NLP technology to help you identify misinformation
           </p>
           {/* Trial Counter for Guests */}
-          {!isLoggedIn && (
+          {!isAuthenticated && (
             <div className="trial-indicator">
               <span className={`trial-badge ${trialCount >= FREE_TRIALS ? 'expired' : ''}`}>
                 {trialCount >= FREE_TRIALS 
@@ -105,6 +111,13 @@ const Home = () => {
           )}
         </div>
 
+        {/* Error display */}
+        {error && (
+          <div className="error-message" style={{ marginBottom: '1rem', color: '#dc3545', padding: '1rem', background: '#ffe6e6', borderRadius: '8px', textAlign: 'center' }}>
+            {error}
+          </div>
+        )}
+
         {/* Main Content */}
         <div className="main-content">
           {result ? (
@@ -112,6 +125,7 @@ const Home = () => {
             <ResultDisplay
               prediction={result.prediction}
               confidence={result.confidence}
+              details={result.details}
               onReset={handleReset}
             />
           ) : (
@@ -121,7 +135,10 @@ const Home = () => {
               isLoading={isLoading}
               maxChars={currentLimit}
               onLimitExceeded={handleLimitExceeded}
-              isLoggedIn={isLoggedIn}
+              isLoggedIn={isAuthenticated}
+              onAnalysisResult={(result) => {
+                setResult(result);
+              }}
             />
           )}
         </div>

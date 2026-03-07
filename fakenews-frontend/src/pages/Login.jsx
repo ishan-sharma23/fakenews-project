@@ -1,22 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-
-// API Base URL - update this if your backend runs on a different port
-const API_URL = 'http://localhost:5000/api';
+import { GoogleLogin } from '@react-oauth/google';
+import { useAuth } from '../context/AuthContext';
 
 /**
  * Login Page
  * - Login form with email and password
- * - Connects to backend API for authentication
+ * - Uses AuthContext for authentication
  */
 const Login = () => {
   const navigate = useNavigate();
+  const { login, googleLogin, isAuthenticated, loading, error: authError, clearError } = useAuth();
+  
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [localError, setLocalError] = useState('');
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/');
+    }
+  }, [isAuthenticated, navigate]);
+
+  // Clear errors on mount
+  useEffect(() => {
+    clearError();
+  }, [clearError]);
 
   // Handle input changes
   const handleChange = (e) => {
@@ -25,7 +37,7 @@ const Login = () => {
       ...prev,
       [name]: value
     }));
-    setError(''); // Clear error on input
+    setLocalError('');
   };
 
   // Handle form submission
@@ -34,47 +46,40 @@ const Login = () => {
     
     // Basic validation
     if (!formData.email || !formData.password) {
-      setError('Please fill in all fields');
+      setLocalError('Please fill in all fields');
       return;
     }
 
-    setIsLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch(`${API_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-      }
-
-      // Store token and user data in localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify({
-        id: data._id,
-        name: data.name,
-        email: data.email,
-      }));
-
-      // Redirect to home page
+    const result = await login(formData.email, formData.password);
+    
+    if (result.success) {
       navigate('/');
-    } catch (err) {
-      setError(err.message || 'An error occurred. Please try again.');
-    } finally {
-      setIsLoading(false);
     }
   };
+
+  // Handle Google OAuth success
+  const handleGoogleSuccess = async (credentialResponse) => {
+    console.log('Google OAuth Success - Credential received');
+    console.log('Credential length:', credentialResponse.credential?.length);
+    
+    const result = await googleLogin(credentialResponse.credential);
+    
+    if (result.success) {
+      console.log('Navigation to home...');
+      navigate('/');
+    } else {
+      console.error('Google login failed:', result.error);
+      setLocalError(result.error || 'Google login failed. Please try again.');
+    }
+  };
+
+  // Handle Google OAuth error
+  const handleGoogleError = () => {
+    console.error('Google OAuth Error - Button callback failed');
+    setLocalError('Google login failed. Please check your Google Cloud Console configuration.');
+  };
+
+  const displayError = localError || authError;
 
   return (
     <div className="page login-page">
@@ -89,9 +94,9 @@ const Login = () => {
           </div>
 
           {/* Error Message */}
-          {error && (
+          {displayError && (
             <div className="error-message">
-              {error}
+              {displayError}
             </div>
           )}
 
@@ -107,7 +112,7 @@ const Login = () => {
                 placeholder="Enter your email"
                 value={formData.email}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={loading}
               />
             </div>
 
@@ -121,7 +126,7 @@ const Login = () => {
                 placeholder="Enter your password"
                 value={formData.password}
                 onChange={handleChange}
-                disabled={isLoading}
+                disabled={loading}
               />
             </div>
 
@@ -139,10 +144,10 @@ const Login = () => {
             {/* Submit Button */}
             <button 
               type="submit" 
-              className={`btn btn-primary btn-full ${isLoading ? 'loading' : ''}`}
-              disabled={isLoading}
+              className={`btn btn-primary btn-full ${loading ? 'loading' : ''}`}
+              disabled={loading}
             >
-              {isLoading ? (
+              {loading ? (
                 <>
                   <span className="spinner"></span>
                   Signing in...
@@ -158,11 +163,16 @@ const Login = () => {
             <span>or</span>
           </div>
 
-          {/* Social Login (Placeholder) */}
+          {/* Social Login - Google OAuth */}
           <div className="social-login">
-            <button className="btn btn-social btn-google">
-              <span>G</span> Continue with Google
-            </button>
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={handleGoogleError}
+              size="large"
+              width={400}
+              text="continue_with"
+              shape="rectangular"
+            />
           </div>
 
           {/* Sign Up Link */}
