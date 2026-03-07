@@ -104,15 +104,10 @@ class FakeNewsPredictor:
         # Remove numbers
         text = re.sub(r'\d+', '', text)
         
-        # Tokenize and remove stopwords
-        words = text.split()
-        words = [w for w in words if w not in STOP_WORDS and len(w) > 2]
+        # Note: stopword removal is handled by TF-IDF vectorizer (stop_words='english')
+        # No manual stopword removal here to keep preprocessing consistent
         
-        # Apply stemming if available
-        if NLTK_AVAILABLE and STEMMER:
-            words = [STEMMER.stem(w) for w in words]
-        
-        return ' '.join(words)
+        return text
     
     def _create_model(self):
         """
@@ -129,14 +124,14 @@ class FakeNewsPredictor:
         """
         # Random Forest with regularization to prevent overfitting
         rf_clf = RandomForestClassifier(
-            n_estimators=50,           # Reduced from 100 (less overfitting)
-            max_depth=10,              # Reduced from 20 (limits tree complexity)
+            n_estimators=30,           # Reduced for speed
+            max_depth=8,               # Limits tree complexity
             min_samples_split=10,      # Requires more samples to split (regularization)
             min_samples_leaf=5,        # Minimum samples in leaf nodes
             max_features='sqrt',       # Use sqrt of features (reduces overfitting)
             class_weight='balanced',   # Handle class imbalance
             random_state=42,
-            n_jobs=-1
+            n_jobs=1
         )
         
         # Logistic Regression with strong L2 regularization
@@ -147,7 +142,7 @@ class FakeNewsPredictor:
             max_iter=1000,
             class_weight='balanced',   # Handle class imbalance
             random_state=42,
-            n_jobs=-1
+            n_jobs=1
         )
         
         # Naive Bayes with higher smoothing
@@ -163,7 +158,7 @@ class FakeNewsPredictor:
                 ('nb', nb_clf)
             ],
             voting='soft',
-            n_jobs=-1
+            n_jobs=1
         )
         
         return voting_clf
@@ -178,12 +173,13 @@ class FakeNewsPredictor:
         - Reduced max_df (ignore too common words)
         """
         return TfidfVectorizer(
-            max_features=3000,         # Reduced from 5000 (fewer features = less overfitting)
-            ngram_range=(1, 2),        # Unigrams and bigrams
-            min_df=5,                  # Increased from 2 (ignore words appearing in < 5 docs)
-            max_df=0.85,               # Reduced from 0.95 (ignore words in > 85% of docs)
+            max_features=3000,         # Good feature count
+            ngram_range=(1, 1),        # Unigrams only (bigrams too slow for large datasets)
+            min_df=3,                  # Minimum document frequency
+            max_df=0.9,               # Ignore words in > 90% of docs
             sublinear_tf=True,
             strip_accents='unicode',   # Normalize text
+            stop_words='english',      # Use built-in English stop words
             lowercase=True
         )
     
@@ -191,8 +187,15 @@ class FakeNewsPredictor:
         """Load trained model and vectorizer if they exist"""
         try:
             if os.path.exists(self.model_path) and os.path.exists(self.vectorizer_path):
-                self.model = joblib.load(self.model_path)
-                self.vectorizer = joblib.load(self.vectorizer_path)
+                try:
+                    self.model = joblib.load(self.model_path)
+                    self.vectorizer = joblib.load(self.vectorizer_path)
+                except Exception:
+                    import pickle
+                    with open(self.model_path, 'rb') as f:
+                        self.model = pickle.load(f)
+                    with open(self.vectorizer_path, 'rb') as f:
+                        self.vectorizer = pickle.load(f)
                 self.is_trained = True
                 print("Model loaded successfully")
             else:

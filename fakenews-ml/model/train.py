@@ -33,7 +33,8 @@ def load_dataset(file_path):
     - Custom: columns 'text'/'content', 'label'/'class'
     """
     print(f"Loading dataset from {file_path}...")
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, encoding='utf-8', encoding_errors='ignore',
+                     usecols=[0, 1, 2, 3], dtype=str, low_memory=False)
     
     print(f"Columns found: {df.columns.tolist()}")
     print(f"Total rows: {len(df)}")
@@ -79,15 +80,20 @@ def load_dataset(file_path):
     
     # Get texts and labels
     texts = df[text_col].fillna('').astype(str).tolist()
-    labels = df[label_col].tolist()
+    raw_labels = df[label_col].tolist()
     
-    # Convert string labels to numeric if needed
-    if len(labels) > 0 and isinstance(labels[0], str):
-        label_map = {'real': 0, 'true': 0, 'Real': 0, 'TRUE': 0,
-                     'fake': 1, 'false': 1, 'Fake': 1, 'FALSE': 1}
-        labels = [label_map.get(str(l).strip(), 0) for l in labels]
+    # Convert labels to numeric, keeping only valid 0/1 rows
+    valid_label_map = {'0': 0, '1': 1, 'real': 0, 'true': 0, 'Real': 0, 'TRUE': 0,
+                       'fake': 1, 'false': 1, 'Fake': 1, 'FALSE': 1}
+    cleaned = []
+    for t, l in zip(texts, raw_labels):
+        l_stripped = str(l).strip()
+        if l_stripped in valid_label_map:
+            cleaned.append((t, valid_label_map[l_stripped]))
     
-    labels = [int(l) for l in labels]
+    print(f"Kept {len(cleaned)} rows with valid labels (dropped {len(texts) - len(cleaned)} corrupted rows)")
+    texts, labels = zip(*cleaned) if cleaned else ([], [])
+    texts, labels = list(texts), list(labels)
     
     # Filter out empty texts
     filtered = [(t, l) for t, l in zip(texts, labels) if len(t.strip()) > 20]
