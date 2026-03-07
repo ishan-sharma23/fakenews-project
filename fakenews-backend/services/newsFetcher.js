@@ -1,7 +1,6 @@
 const cron = require('node-cron');
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5001';
-const NEWS_API_KEY = process.env.NEWS_API_KEY;
 
 // In-memory cache of trending news with analysis
 let trendingCache = [];
@@ -11,7 +10,8 @@ let lastFetchTime = null;
  * Fetch news articles from NewsAPI
  */
 const fetchNews = async (query = 'India news OR Bollywood OR technology', page = 1) => {
-  if (!NEWS_API_KEY) {
+  const apiKey = process.env.NEWS_API_KEY;
+  if (!apiKey) {
     console.log('[NewsFetcher] No NEWS_API_KEY set, using demo data');
     return getDemoArticles();
   }
@@ -23,7 +23,7 @@ const fetchNews = async (query = 'India news OR Bollywood OR technology', page =
     url.searchParams.set('sortBy', 'publishedAt');
     url.searchParams.set('pageSize', '20');
     url.searchParams.set('page', String(page));
-    url.searchParams.set('apiKey', NEWS_API_KEY);
+    url.searchParams.set('apiKey', apiKey);
 
     const response = await fetch(url.toString());
     if (!response.ok) {
