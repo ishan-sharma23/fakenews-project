@@ -29,7 +29,7 @@ const Register = () => {
   // Clear errors on mount
   useEffect(() => {
     clearError();
-  }, []);
+  }, [clearError]);
 
   // Handle input changes
   const handleChange = (e) => {

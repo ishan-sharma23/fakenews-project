@@ -2,7 +2,8 @@ const axios = require("axios");
 
 const getPrediction = async (text) => {
   try {
-    const response = await axios.post("http://localhost:5000/predict", {
+    const ML_URL = process.env.ML_SERVICE_URL || "http://localhost:5001";
+    const response = await axios.post(`${ML_URL}/predict`, {
       text,
     });
     return response.data;

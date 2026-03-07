@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
 import { analyzeAPI } from '../services/api';
 
 /**
@@ -9,7 +8,6 @@ import { analyzeAPI } from '../services/api';
  * - Detailed analysis results using ML backend (Voting Classifier + NLP + RF)
  */
 const Analyze = () => {
-  const { isAuthenticated } = useAuth();
   const [inputType, setInputType] = useState('text'); // 'text', 'url', 'file'
   const [textInput, setTextInput] = useState('');
   const [urlInput, setUrlInput] = useState('');

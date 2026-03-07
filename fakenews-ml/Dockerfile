@@ -17,6 +17,13 @@ RUN python -c "import nltk; nltk.download('stopwords', quiet=True)"
 # Copy application code
 COPY . .
 
+# Train model if dataset exists and .pkl files are missing
+RUN if [ -f data/WELFake_Dataset.csv ] && [ ! -f model/voting_classifier.pkl ]; then \
+      cd model && python train.py --data ../data/WELFake_Dataset.csv; \
+    elif [ ! -f model/voting_classifier.pkl ]; then \
+      cd model && python train.py --sample; \
+    fi
+
 # Expose port
 EXPOSE 5001
 
