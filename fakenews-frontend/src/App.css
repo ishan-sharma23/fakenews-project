@@ -778,6 +778,8 @@ body {
 /* ----- Social Login ----- */
 .social-login {
   margin-bottom: 24px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .btn-social {

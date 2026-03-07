@@ -169,9 +169,9 @@ const Login = () => {
               onSuccess={handleGoogleSuccess}
               onError={handleGoogleError}
               size="large"
-              width={400}
               text="continue_with"
               shape="rectangular"
+              width="350"
             />
           </div>
 
