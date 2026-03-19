@@ -1,10 +1,21 @@
 const cron = require('node-cron');
+const { getSourceCredibilityByName, deriveBinaryVerdict } = require('./verdictService');
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5001';
 
 // In-memory cache of trending news with analysis
 let trendingCache = [];
 let lastFetchTime = null;
+
+const buildAnalysisText = (article) => {
+  const title = article.title || '';
+  const description = article.description || '';
+  const content = (article.content || '').replace(/\[\+\d+\s+chars\]$/i, '').trim();
+
+  // Include as much context as possible so trending analysis matches manual analysis better.
+  return `${title} ${description} ${content}`.replace(/\s+/g, ' ').trim();
+};
+
 
 /**
  * Fetch news articles from NewsAPI
@@ -67,26 +78,39 @@ const fetchAndAnalyze = async (query) => {
   const results = [];
 
   for (const article of articles) {
-    const text = `${article.title || ''} ${article.description || ''}`.trim();
+    const text = buildAnalysisText(article);
     if (text.length < 20) continue;
 
     const analysis = await analyzeArticle(text);
+    const sourceName = article.source?.name || 'Unknown';
+    const sourceCredibility = getSourceCredibilityByName(sourceName);
+    const verdictInfo = deriveBinaryVerdict(analysis, sourceCredibility, text.length);
 
     results.push({
       title: article.title || 'Untitled',
       description: article.description || '',
-      source: article.source?.name || 'Unknown',
+      source: sourceName,
       url: article.url || '',
       imageUrl: article.urlToImage || '',
       publishedAt: article.publishedAt || new Date().toISOString(),
+      analysisTextLength: text.length,
       analysis: analysis ? {
-        prediction: analysis.prediction,
+        prediction: verdictInfo.verdict,
+        modelPrediction: verdictInfo.modelPrediction,
         confidence: analysis.confidence,
-        details: analysis.details
+        reason: verdictInfo.reason,
+        details: {
+          ...analysis.details,
+          sourceCredibility
+        }
       } : {
-        prediction: 'UNKNOWN',
+        prediction: sourceCredibility < 50 ? 'FAKE' : 'REAL',
+        modelPrediction: 'UNKNOWN',
         confidence: 0,
-        details: {}
+        reason: 'ML service unavailable; fallback verdict from source credibility',
+        details: {
+          sourceCredibility
+        }
       }
     });
   }

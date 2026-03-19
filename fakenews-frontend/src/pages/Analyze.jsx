@@ -53,6 +53,8 @@ const Analyze = () => {
       
       setResult({
         prediction: data.prediction,
+        modelPrediction: data.modelPrediction,
+        reason: data.reason,
         confidence: data.confidence,
         details: {
           sentimentScore: data.details?.sentimentScore || 0,
@@ -195,6 +197,12 @@ const Analyze = () => {
               <div className="result-badge-large">
                 {result.prediction === 'FAKE' ? '⚠️' : '✅'} {result.prediction}
               </div>
+              {(result.modelPrediction || result.reason) && (
+                <div style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: '#4b5563' }}>
+                  {result.modelPrediction && <div><strong>Model:</strong> {result.modelPrediction}</div>}
+                  {result.reason && <div><strong>Why:</strong> {result.reason}</div>}
+                </div>
+              )}
               <div className="confidence-meter">
                 <span>Confidence</span>
                 <div className="meter-bar">

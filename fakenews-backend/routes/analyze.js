@@ -3,9 +3,49 @@ const router = express.Router();
 const { body, validationResult } = require('express-validator');
 const Analysis = require('../models/Analysis');
 const { protect, optionalAuth } = require('../middleware/auth');
+const { getSourceCredibilityFromUrl, deriveBinaryVerdict } = require('../services/verdictService');
 
 // ML Service URL (Python Flask)
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5001';
+
+const extractTextFromUrl = async (urlString) => {
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(urlString);
+  } catch {
+    throw new Error('Invalid URL format');
+  }
+
+  if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+    throw new Error('Only HTTP/HTTPS URLs are supported');
+  }
+
+  const response = await fetch(parsedUrl.toString(), {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; FakeNewsAnalyzer/1.0)'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to fetch URL content (${response.status})`);
+  }
+
+  const html = await response.text();
+
+  const stripped = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (stripped.length < 80) {
+    throw new Error('Could not extract enough readable text from URL');
+  }
+
+  return stripped;
+};
 
 /**
  * Call ML Microservice for prediction
@@ -148,7 +188,6 @@ const analyzeWithHeuristics = (content, contentType) => {
 // @access  Public (with limits) / Private (extended)
 router.post('/', [
   body('content', 'Content is required').notEmpty(),
-  body('content', 'Content must be at least 50 characters').isLength({ min: 50 }),
   body('contentType').optional().isIn(['text', 'url'])
 ], optionalAuth, async (req, res) => {
   const errors = validationResult(req);
@@ -159,41 +198,72 @@ router.post('/', [
   const { content, contentType = 'text' } = req.body;
 
   try {
-    // Character limit check (500 for guests, 5000 for logged in)
-    const maxChars = req.user ? 5000 : 500;
-    if (content.length > maxChars) {
-      return res.status(400).json({ 
-        message: `Content exceeds ${maxChars} character limit. ${!req.user ? 'Login for extended limits.' : ''}`
+    let contentToAnalyze = content;
+    // For pasted text, source is unknown but should not be treated as low-trust by default.
+    let sourceCredibility = 70;
+
+    if (contentType === 'url') {
+      sourceCredibility = getSourceCredibilityFromUrl(content);
+      contentToAnalyze = await extractTextFromUrl(content);
+
+      const maxUrlChars = req.user ? 5000 : 1500;
+      if (contentToAnalyze.length > maxUrlChars) {
+        contentToAnalyze = contentToAnalyze.substring(0, maxUrlChars);
+      }
+    } else {
+      // Character limit check for text input (500 for guests, 5000 for logged in)
+      const maxChars = req.user ? 5000 : 500;
+      if (content.length > maxChars) {
+        return res.status(400).json({ 
+          message: `Content exceeds ${maxChars} character limit. ${!req.user ? 'Login for extended limits.' : ''}`
+        });
+      }
+    }
+
+    if (contentToAnalyze.trim().length < 50) {
+      return res.status(400).json({
+        message: 'Content must be at least 50 characters after processing'
       });
     }
 
     // Analyze the content using ML service (Voting Classifier + NLP + RF)
     // Falls back to heuristics if ML service is unavailable
     let analysisResult;
-    let usedMLService = false;
     
     try {
-      analysisResult = await analyzeWithML(content);
-      usedMLService = true;
+      analysisResult = await analyzeWithML(contentToAnalyze);
       console.log('Analysis completed using ML service (Voting Classifier)');
     } catch (mlError) {
       console.log('ML service unavailable, using heuristic fallback:', mlError.message);
-      analysisResult = analyzeWithHeuristics(content, contentType);
+      analysisResult = analyzeWithHeuristics(contentToAnalyze, contentType);
     }
+
+    const verdictInfo = deriveBinaryVerdict(
+      analysisResult,
+      sourceCredibility,
+      contentToAnalyze.length
+    );
+
+    const finalDetails = {
+      ...analysisResult.details,
+      sourceCredibility
+    };
 
     // Save to database
     const analysis = await Analysis.create({
       user: req.user ? req.user._id : null,
-      content: content.substring(0, 1000), // Store first 1000 chars
+      content: contentToAnalyze.substring(0, 1000), // Store first 1000 chars
       contentType,
-      prediction: analysisResult.prediction,
+      prediction: verdictInfo.verdict,
       confidence: analysisResult.confidence,
-      details: analysisResult.details
+      details: finalDetails
     });
 
     res.status(201).json({
       _id: analysis._id,
       prediction: analysis.prediction,
+      modelPrediction: verdictInfo.modelPrediction,
+      reason: verdictInfo.reason,
       confidence: analysis.confidence,
       details: analysis.details,
       createdAt: analysis.createdAt

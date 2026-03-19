@@ -70,7 +70,7 @@ const Trending = () => {
           📡 Real-Time News Analysis
         </h1>
         <p style={{ color: '#6b7280', marginBottom: '1rem' }}>
-          Live news articles analyzed by our ML model for authenticity
+          Live news classified into strict binary verdicts (FAKE or REAL)
         </p>
 
         {/* Stats bar */}
@@ -85,7 +85,7 @@ const Trending = () => {
             background: '#fef2f2', color: '#991b1b', padding: '6px 14px',
             borderRadius: 20, fontSize: '0.875rem', fontWeight: 600
           }}>
-            ⚠️ {fakeCount} Suspicious
+            ⚠️ {fakeCount} Fake
           </span>
           <span style={{
             background: '#f3f4f6', color: '#6b7280', padding: '6px 14px',
@@ -116,7 +116,7 @@ const Trending = () => {
                 fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer'
               }}
             >
-              {f === 'all' ? '🔍 All' : f === 'fake' ? '⚠️ Suspicious' : '✅ Real'}
+              {f === 'all' ? '🔍 All' : f === 'fake' ? '⚠️ Fake' : '✅ Real'}
             </button>
           ))}
 
@@ -167,13 +167,18 @@ const Trending = () => {
  * Individual article card
  */
 const ArticleCard = ({ article }) => {
-  const isFake = article.analysis?.prediction === 'FAKE';
+  const verdict = article.analysis?.prediction || 'REAL';
   const confidence = article.analysis?.confidence || 0;
+  const sourceCredibility = article.analysis?.details?.sourceCredibility;
+  const modelPrediction = article.analysis?.modelPrediction;
+
+  const isFake = verdict === 'FAKE';
 
   const borderColor = isFake ? '#ef4444' : '#22c55e';
   const bgColor = isFake ? '#fef2f2' : '#f0fdf4';
   const badgeColor = isFake ? '#991b1b' : '#166534';
   const badgeBg = isFake ? '#fecaca' : '#bbf7d0';
+  const badgeLabel = isFake ? '⚠️ FAKE' : '✅ REAL';
 
   return (
     <div style={{
@@ -190,7 +195,7 @@ const ArticleCard = ({ article }) => {
           padding: '4px 10px', borderRadius: 12,
           fontSize: '0.75rem', fontWeight: 700
         }}>
-          {isFake ? '⚠️ SUSPICIOUS' : '✅ CREDIBLE'}
+          {badgeLabel}
         </span>
         <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>
           {confidence.toFixed(1)}% confidence
@@ -216,6 +221,15 @@ const ArticleCard = ({ article }) => {
           <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
             {new Date(article.publishedAt).toLocaleDateString()}
           </span>
+        </div>
+
+        {/* Why this verdict */}
+        <div style={{ marginTop: 10, fontSize: '0.75rem', color: '#6b7280', lineHeight: 1.45 }}>
+          <div><strong>Why:</strong> {article.analysis?.reason || 'No explanation available'}</div>
+          <div>
+            Model: {modelPrediction || 'UNKNOWN'}
+            {typeof sourceCredibility === 'number' ? ` • Source trust: ${sourceCredibility}%` : ''}
+          </div>
         </div>
 
         {/* Flags */}
