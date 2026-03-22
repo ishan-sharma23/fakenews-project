@@ -2,36 +2,36 @@
   "dataset": {
     "path": ".\\fakenews-ml\\data\\WELFake_Dataset.csv",
     "split_mode": "random",
-    "max_samples": 3000,
+    "max_samples": 8000,
     "min_text_chars": 60,
     "deduplicate": true,
-    "train_size": 2250,
-    "test_size": 750,
+    "train_size": 6000,
+    "test_size": 2000,
     "label_distribution": {
-      "real": 1644,
-      "fake": 1356
+      "real": 4384,
+      "fake": 3616
     }
   },
   "metrics": {
     "test": {
-      "accuracy": 0.8733333333333333,
-      "f1_macro": 0.8719839876673416,
-      "auc_roc": 0.9564196972633119,
-      "mcc": 0.7440470263456324
+      "accuracy": 0.909,
+      "f1_macro": 0.9083377401727482,
+      "auc_roc": 0.9712747682643241,
+      "mcc": 0.8168983743350874
     },
     "train_probe": {
-      "accuracy": 0.995,
-      "f1_macro": 0.9948228106960731,
-      "auc_roc": 0.9993775287892935,
-      "mcc": 0.9896989424671725
+      "accuracy": 0.985,
+      "f1_macro": 0.9841232039374455,
+      "auc_roc": 0.9990497307570478,
+      "mcc": 0.9683014872601606
     },
-    "gap": 0.1216666666666667,
+    "gap": 0.07599999999999996,
     "cv_scores": [
-      0.88,
-      0.8871111111111111
+      0.894,
+      0.9006666666666666
     ],
-    "cv_mean": 0.8835555555555555,
-    "cv_std_x2": 0.007111111111111068
+    "cv_mean": 0.8973333333333333,
+    "cv_std_x2": 0.006666666666666599
   },
   "incremental": {
     "rows": 0,
