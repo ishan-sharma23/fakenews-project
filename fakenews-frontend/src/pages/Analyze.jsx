@@ -39,7 +39,7 @@ const Analyze = () => {
       return;
     }
 
-    if (content.length < 50) {
+    if (inputType !== 'url' && content.length < 50) {
       setError('Please provide at least 50 characters for accurate analysis');
       return;
     }
@@ -49,7 +49,12 @@ const Analyze = () => {
 
     try {
       // Call backend API (which uses ML Voting Classifier + NLP + RF)
-      const data = await analyzeAPI.analyze(content, inputType);
+      let data;
+      if (inputType === 'url') {
+        data = await analyzeAPI.analyze(urlInput, 'url');
+      } else {
+        data = await analyzeAPI.analyze(content, inputType);
+      }
       
       setResult({
         prediction: data.prediction,
@@ -61,6 +66,9 @@ const Analyze = () => {
           objectivityScore: data.details?.objectivityScore || 0,
           clickbaitScore: data.details?.clickbaitScore || 0,
           sourceCredibility: data.details?.sourceCredibility || 0,
+          linguisticFlags: data.details?.linguisticFlags || [],
+          featureBreakdown: data.details?.featureBreakdown || {},
+          subjectivity: data.details?.featureBreakdown?.subjectivity || 0,
           flags: data.details?.flags || [],
           votes: data.details?.votes || {},
           probabilities: data.details?.probabilities || {}
@@ -242,8 +250,23 @@ const Analyze = () => {
             <div className="metrics-grid">
               <div className="metric-card">
                 <h4>Sentiment Score</h4>
-                <div className="metric-value">{result.details.sentimentScore}</div>
-                <p className="metric-desc">Range: -1 (negative) to 1 (positive)</p>
+                {(() => {
+                  const score = result.details.sentimentScore || 0;
+                  const sentLabel = score > 10 ? 'Positive' : score < -10 ? 'Negative' : 'Neutral';
+                  const sentColor = score > 10 ? '#166534' : score < -10 ? '#991b1b' : '#6b7280';
+
+                  return (
+                    <>
+                      <div className="metric-value" style={{ color: sentColor }}>
+                        {score > 0 ? '+' : ''}{score}
+                      </div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 600, color: sentColor, marginBottom: '0.25rem' }}>
+                        {sentLabel}
+                      </div>
+                      <p className="metric-desc">-100 (negative) to +100 (positive)</p>
+                    </>
+                  );
+                })()}
               </div>
               <div className="metric-card">
                 <h4>Objectivity</h4>
@@ -262,6 +285,34 @@ const Analyze = () => {
               </div>
             </div>
 
+            {result.details.featureBreakdown && Object.keys(result.details.featureBreakdown).length > 0 && (
+              <div style={{ marginTop: '1rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px' }}>
+                <h3 style={{ marginBottom: '0.75rem' }}>📊 Feature Breakdown</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '0.75rem' }}>
+                  {[
+                    { label: 'Subjectivity', value: Math.round((result.details.featureBreakdown.subjectivity || 0) * 100) },
+                    { label: 'Caps ratio', value: Math.round((result.details.featureBreakdown.caps_ratio || 0) * 100) },
+                    { label: 'Exclamation', value: Math.min(100, Math.round((result.details.featureBreakdown.exclamation_ratio || 0) * 1000)) }
+                  ].map(({ label, value }) => (
+                    <div key={label}>
+                      <div style={{ fontSize: '0.8rem', color: '#4b5563', marginBottom: '0.3rem' }}>
+                        {label}: {value}%
+                      </div>
+                      <div style={{ height: '8px', borderRadius: '4px', background: '#e5e7eb', overflow: 'hidden' }}>
+                        <div
+                          style={{
+                            width: `${value}%`,
+                            height: '100%',
+                            background: '#6366f1'
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Flags Section */}
             {result.details.flags.length > 0 && (
               <div className="flags-section">
@@ -269,6 +320,19 @@ const Analyze = () => {
                 <ul className="flags-list">
                   {result.details.flags.map((flag, index) => (
                     <li key={index} className="flag-item">{flag}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {result.details.linguisticFlags && result.details.linguisticFlags.length > 0 && (
+              <div className="flags-section">
+                <h3>🔬 Linguistic Analysis Flags</h3>
+                <ul className="flags-list">
+                  {result.details.linguisticFlags.map((flag, i) => (
+                    <li key={i} className="flag-item">
+                      🔍 {flag}
+                    </li>
                   ))}
                 </ul>
               </div>
