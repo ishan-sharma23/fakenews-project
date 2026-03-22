@@ -2,10 +2,31 @@ const cron = require('node-cron');
 const { getSourceCredibilityByName, deriveBinaryVerdict } = require('./verdictService');
 
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:5001';
+const MAX_CACHE_SIZE = 100;
+const ML_TIMEOUT_MS = 15000;
+const ML_RETRY_DELAY_MS = 2000;
+const ML_RETRIES = 1;
+const BATCH_SIZE = 5;
+const ROTATING_QUERIES = [
+  'India politics OR policy OR parliament',
+  'Bollywood OR entertainment India OR film industry',
+  'technology OR AI OR cybersecurity OR startups',
+  'health OR medical research OR public health',
+  'economy OR markets OR inflation OR GDP'
+];
+let queryCursor = 0;
 
 // In-memory cache of trending news with analysis
 let trendingCache = [];
 let lastFetchTime = null;
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const getNextQuery = () => {
+  const query = ROTATING_QUERIES[queryCursor % ROTATING_QUERIES.length];
+  queryCursor += 1;
+  return query;
+};
 
 const buildAnalysisText = (article) => {
   const title = article.title || '';
@@ -20,7 +41,7 @@ const buildAnalysisText = (article) => {
 /**
  * Fetch news articles from NewsAPI
  */
-const fetchNews = async (query = 'India news OR Bollywood OR technology', page = 1) => {
+const fetchNews = async (query = getNextQuery(), page = 1) => {
   const apiKey = process.env.NEWS_API_KEY;
   if (!apiKey) {
     console.log('[NewsFetcher] No NEWS_API_KEY set, using demo data');
@@ -53,19 +74,32 @@ const fetchNews = async (query = 'India news OR Bollywood OR technology', page =
  * Analyze a single article through the ML service
  */
 const analyzeArticle = async (text) => {
-  try {
-    const response = await fetch(`${ML_SERVICE_URL}/predict`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text })
-    });
+  for (let attempt = 0; attempt <= ML_RETRIES; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ML_TIMEOUT_MS);
 
-    if (!response.ok) throw new Error(`ML service error: ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    console.error('[NewsFetcher] ML analysis error:', error.message);
-    return null;
+    try {
+      const response = await fetch(`${ML_SERVICE_URL}/predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) throw new Error(`ML service error: ${response.status}`);
+      clearTimeout(timeout);
+      return await response.json();
+    } catch (error) {
+      clearTimeout(timeout);
+      const isLastAttempt = attempt >= ML_RETRIES;
+      if (isLastAttempt) {
+        console.error('[NewsFetcher] ML analysis error:', error.message);
+        return null;
+      }
+      await sleep(ML_RETRY_DELAY_MS);
+    }
   }
+  return null;
 };
 
 /**
@@ -76,60 +110,101 @@ const fetchAndAnalyze = async (query) => {
 
   const articles = await fetchNews(query);
   const results = [];
+  const seenKeys = new Set();
 
-  for (const article of articles) {
-    const text = buildAnalysisText(article);
-    if (text.length < 20) continue;
+  for (let i = 0; i < articles.length; i += BATCH_SIZE) {
+    const batch = articles.slice(i, i + BATCH_SIZE);
+    const prepared = batch
+      .map((article) => ({
+        article,
+        text: buildAnalysisText(article),
+        sourceName: article.source?.name || 'Unknown'
+      }))
+      .filter((item) => item.text.length >= 20);
 
-    const analysis = await analyzeArticle(text);
-    const sourceName = article.source?.name || 'Unknown';
-    const sourceCredibility = getSourceCredibilityByName(sourceName);
-    const verdictInfo = deriveBinaryVerdict(analysis, sourceCredibility, text.length);
+    const analyses = await Promise.all(prepared.map((item) => analyzeArticle(item.text)));
 
-    results.push({
-      title: article.title || 'Untitled',
-      description: article.description || '',
-      source: sourceName,
-      url: article.url || '',
-      imageUrl: article.urlToImage || '',
-      publishedAt: article.publishedAt || new Date().toISOString(),
-      analysisTextLength: text.length,
-      analysis: analysis ? {
-        prediction: verdictInfo.verdict,
-        modelPrediction: verdictInfo.modelPrediction,
-        confidence: analysis.confidence,
-        reason: verdictInfo.reason,
-        details: {
-          ...analysis.details,
-          sourceCredibility
+    prepared.forEach((item, idx) => {
+      const article = item.article;
+      const text = item.text;
+      const analysis = analyses[idx];
+      const sourceName = item.sourceName;
+      const sourceCredibility = getSourceCredibilityByName(sourceName);
+      const verdictInfo = deriveBinaryVerdict(analysis, sourceCredibility, text.length);
+
+      const articleUrl = article.url || '';
+      const dedupKey = articleUrl && articleUrl !== '#'
+        ? articleUrl
+        : `${article.title || 'untitled'}|${article.publishedAt || ''}`;
+      if (seenKeys.has(dedupKey)) return;
+      seenKeys.add(dedupKey);
+
+      const sentimentScore = Number(analysis?.details?.sentimentScore ?? 0);
+      const linguisticFlags = analysis?.details?.linguisticFlags || analysis?.details?.flags || [];
+      const featureBreakdown = analysis?.details?.featureBreakdown || {};
+
+      results.push({
+        title: article.title || 'Untitled',
+        description: article.description || '',
+        source: sourceName,
+        url: articleUrl,
+        imageUrl: article.urlToImage || '',
+        publishedAt: article.publishedAt || new Date().toISOString(),
+        analysisTextLength: text.length,
+        analysis: analysis ? {
+          prediction: verdictInfo.verdict,
+          modelPrediction: verdictInfo.modelPrediction,
+          confidence: analysis.confidence,
+          reason: verdictInfo.reason,
+          details: {
+            ...analysis.details,
+            sourceCredibility,
+            sentimentScore,
+            linguisticFlags,
+            featureBreakdown
+          }
+        } : {
+          prediction: sourceCredibility < 50 ? 'FAKE' : 'REAL',
+          modelPrediction: 'UNKNOWN',
+          confidence: 0,
+          reason: 'ML service unavailable; fallback verdict from source credibility',
+          details: {
+            sourceCredibility,
+            sentimentScore: 0,
+            linguisticFlags: [],
+            featureBreakdown: {}
+          }
         }
-      } : {
-        prediction: sourceCredibility < 50 ? 'FAKE' : 'REAL',
-        modelPrediction: 'UNKNOWN',
-        confidence: 0,
-        reason: 'ML service unavailable; fallback verdict from source credibility',
-        details: {
-          sourceCredibility
-        }
-      }
+      });
     });
   }
 
-  trendingCache = results;
+  trendingCache = results.slice(0, MAX_CACHE_SIZE);
   lastFetchTime = new Date();
-  console.log(`[NewsFetcher] Analyzed ${results.length} articles`);
+  console.log(`[NewsFetcher] Analyzed ${trendingCache.length} articles`);
 
-  return results;
+  return trendingCache;
 };
 
 /**
  * Get cached trending results
  */
-const getTrending = () => ({
-  articles: trendingCache,
-  lastUpdated: lastFetchTime,
-  count: trendingCache.length
-});
+const getTrending = (filter = 'ALL') => {
+  const normalizedFilter = String(filter || 'ALL').toUpperCase();
+
+  let filteredArticles = trendingCache;
+  if (normalizedFilter === 'FAKE') {
+    filteredArticles = trendingCache.filter((item) => item?.analysis?.prediction === 'FAKE');
+  } else if (normalizedFilter === 'REAL') {
+    filteredArticles = trendingCache.filter((item) => item?.analysis?.prediction === 'REAL');
+  }
+
+  return {
+    articles: filteredArticles,
+    lastUpdated: lastFetchTime,
+    count: filteredArticles.length
+  };
+};
 
 /**
  * Demo articles when no API key is configured

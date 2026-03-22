@@ -6,7 +6,8 @@ const { getTrending, fetchAndAnalyze } = require('../services/newsFetcher');
 // @desc    Get cached trending news with analysis
 // @access  Public
 router.get('/', (req, res) => {
-  const data = getTrending();
+  const filter = req.query.filter || 'ALL';
+  const data = getTrending(filter);
   res.json(data);
 });
 
@@ -16,8 +17,9 @@ router.get('/', (req, res) => {
 router.post('/refresh', async (req, res) => {
   try {
     const query = req.body.query || 'India news OR Bollywood OR technology';
+    const filter = req.body.filter || req.query.filter || 'ALL';
     await fetchAndAnalyze(query);
-    const data = getTrending();
+    const data = getTrending(filter);
     res.json(data);
   } catch (error) {
     console.error('Refresh error:', error.message);
