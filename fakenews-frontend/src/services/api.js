@@ -128,4 +128,12 @@ export const trendingAPI = {
   }
 };
 
+export const realtimeAPI = {
+  // Get realtime service status via backend proxy
+  getStatus: async () => {
+    const response = await api.get('/realtime/status');
+    return response.data;
+  }
+};
+
 export default api;

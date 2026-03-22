@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { trendingAPI } from '../services/api';
+import socketService from '../services/socketService';
 
 const Trending = () => {
   const [articles, setArticles] = useState([]);
@@ -28,6 +29,26 @@ const Trending = () => {
     const interval = setInterval(fetchTrending, 120000);
     return () => clearInterval(interval);
   }, [fetchTrending]);
+
+  useEffect(() => {
+    const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+    const socketBase = apiBase.endsWith('/api') ? apiBase.slice(0, -4) : apiBase;
+
+    socketService.connect(socketBase);
+
+    const onTrendingUpdated = (payload) => {
+      if (!payload || !Array.isArray(payload.articles)) return;
+      setArticles(payload.articles || []);
+      setLastUpdated(payload.lastUpdated || null);
+      setError('');
+    };
+
+    socketService.on('trending-updated', onTrendingUpdated);
+
+    return () => {
+      socketService.off('trending-updated');
+    };
+  }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
