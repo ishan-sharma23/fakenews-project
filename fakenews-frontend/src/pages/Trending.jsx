@@ -115,6 +115,15 @@ const Trending = () => {
             {articles.length} total articles
           </span>
 
+          {articles.length > 0 && (
+            <span style={{
+              background: '#eff6ff', color: '#1d4ed8', padding: '6px 14px',
+              borderRadius: 20, fontSize: '0.875rem', fontWeight: 600
+            }}>
+              📊 {Math.round((fakeCount / articles.length) * 100)}% fake rate
+            </span>
+          )}
+
           {lastUpdated && (
             <span style={{ color: '#9ca3af', fontSize: '0.8rem', marginLeft: 'auto' }}>
               Updated: {new Date(lastUpdated).toLocaleTimeString()}
@@ -190,6 +199,10 @@ const Trending = () => {
 const ArticleCard = ({ article }) => {
   const verdict = article.analysis?.prediction || 'REAL';
   const confidence = article.analysis?.confidence || 0;
+  const sentScore = article.analysis?.sentimentScore;
+  const sentLabel = sentScore > 10 ? '😠 Negative' : sentScore < -10 ? '😊 Positive' : '😐 Neutral';
+  const sentBg = sentScore > 10 ? '#fee2e2' : sentScore < -10 ? '#dcfce7' : '#f3f4f6';
+  const sentTxt = sentScore > 10 ? '#991b1b' : sentScore < -10 ? '#166534' : '#6b7280';
   const sourceCredibility = article.analysis?.details?.sourceCredibility;
   const modelPrediction = article.analysis?.modelPrediction;
 
@@ -221,6 +234,18 @@ const ArticleCard = ({ article }) => {
         <span style={{ fontSize: '0.75rem', color: '#6b7280', fontWeight: 600 }}>
           {confidence.toFixed(1)}% confidence
         </span>
+        {typeof sentScore === 'number' && (
+          <span style={{
+            fontSize: '0.72rem',
+            background: sentBg,
+            color: sentTxt,
+            padding: '3px 8px',
+            borderRadius: 10,
+            fontWeight: 600
+          }}>
+            {sentLabel}
+          </span>
+        )}
       </div>
 
       {/* Content */}
@@ -265,6 +290,34 @@ const ArticleCard = ({ article }) => {
               </span>
             ))}
           </div>
+        )}
+
+        {article.analysis?.linguisticFlags && article.analysis.linguisticFlags.length > 0 &&
+          article.analysis.linguisticFlags.slice(0, 2).map((flag, i) => (
+            <span key={`ling-${i}`} style={{
+              display: 'inline-block',
+              marginTop: 6,
+              marginRight: 4,
+              fontSize: '0.7rem',
+              background: '#f3f4f6',
+              color: '#6b7280',
+              padding: '2px 8px',
+              borderRadius: 8
+            }}>
+              🔍 {flag}
+            </span>
+          ))
+        }
+
+        {article.url && article.url !== '#' && (
+          <a
+            href={article.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ marginTop: 10, fontSize: '0.78rem', color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}
+          >
+            Read original →
+          </a>
         )}
       </div>
     </div>
