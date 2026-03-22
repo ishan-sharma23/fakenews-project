@@ -89,7 +89,12 @@ export const authAPI = {
 export const analyzeAPI = {
   // Analyze news content
   analyze: async (content, contentType = 'text') => {
-    const response = await api.post('/analyze', { content, contentType });
+    const payload = { content, contentType };
+    if (contentType === 'url') {
+      payload.url = content;
+      payload.content = '';
+    }
+    const response = await api.post('/analyze', payload);
     return response.data;
   },
 
@@ -128,10 +133,35 @@ export const trendingAPI = {
   }
 };
 
+// ============ STREAM API ============
+
+export const streamAPI = {
+  // Stream realtime ML analysis from backend proxy
+  getStream: async (query = 'misinformation', pageSize = 10) => {
+    const response = await api.post('/stream', { query, page_size: pageSize });
+    return response.data;
+  }
+};
+
 export const realtimeAPI = {
   // Get realtime service status via backend proxy
   getStatus: async () => {
     const response = await api.get('/realtime/status');
+    return response.data;
+  }
+};
+
+// ============ ML API ============
+
+export const mlAPI = {
+  // Get ML service status via backend proxy
+  getStatus: async () => {
+    const response = await api.get('/realtime/status');
+    return response.data;
+  },
+  // Get detailed model info (vocab_size, uptime, feature_pipeline)
+  getModelInfo: async () => {
+    const response = await api.get('/ml/info');
     return response.data;
   }
 };
