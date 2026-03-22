@@ -56,6 +56,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/analyze', require('./routes/analyze'));
 app.use('/api/trending', require('./routes/trending'));
 app.use('/api/realtime', require('./routes/realtime'));
+app.use('/api/debug', require('./routes/debug'));
 
 // Health check route
 app.get('/', (req, res) => {
