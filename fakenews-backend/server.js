@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 const connectDB = require('./config/db');
 const http = require('http');
 const socketIO = require('socket.io');
@@ -8,7 +9,7 @@ const { initializeSocketEvents } = require('./services/socketEvents');
 const { startScheduler } = require('./services/newsFetcher');
 
 // Load environment variables
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Connect to database
 connectDB();
