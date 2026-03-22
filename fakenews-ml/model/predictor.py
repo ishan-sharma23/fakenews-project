@@ -11,13 +11,14 @@ Components:
 import os
 import re
 import string
+import importlib
 import joblib
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.ensemble import RandomForestClassifier, VotingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import MultinomialNB
-from sklearn.pipeline import Pipeline
+from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
 # Try to import NLTK, but don't fail if not available
 try:
@@ -53,6 +54,68 @@ except:
                   'them', 'their', 'what', 'which', 'who', 'whom'}
     STEMMER = None
 
+# Optional dependencies with graceful fallback
+try:
+    spacy_lib = importlib.import_module('spacy')
+    nlp = spacy_lib.load('en_core_web_sm')
+    SPACY_AVAILABLE = True
+except Exception:
+    SPACY_AVAILABLE = False
+    nlp = None
+
+try:
+    textblob_mod = importlib.import_module('textblob')
+    TextBlob = textblob_mod.TextBlob
+    TEXTBLOB_AVAILABLE = True
+except Exception:
+    TEXTBLOB_AVAILABLE = False
+    TextBlob = None
+
+try:
+    textstat = importlib.import_module('textstat')
+    TEXTSTAT_AVAILABLE = True
+except Exception:
+    TEXTSTAT_AVAILABLE = False
+    textstat = None
+
+try:
+    import requests as req_lib
+
+    REQUESTS_AVAILABLE = True
+except Exception:
+    REQUESTS_AVAILABLE = False
+
+try:
+    from scipy.sparse import hstack, csr_matrix
+
+    SCIPY_AVAILABLE = True
+except Exception:
+    SCIPY_AVAILABLE = False
+
+
+class TfidfSliceNB(BaseEstimator, ClassifierMixin):
+    """Apply MultinomialNB only on TF-IDF columns to avoid negative feature issues."""
+
+    def __init__(self, base_nb=None, n_tfidf_cols=None):
+        self.base_nb = base_nb if base_nb is not None else MultinomialNB(alpha=0.1)
+        self.n_tfidf_cols = n_tfidf_cols
+        self.nb_ = None
+
+    def fit(self, X, y):
+        self.nb_ = clone(self.base_nb)
+        n_cols = self.n_tfidf_cols if self.n_tfidf_cols is not None else X.shape[1]
+        self.nb_.fit(X[:, :n_cols], y)
+        self.classes_ = self.nb_.classes_
+        return self
+
+    def predict(self, X):
+        n_cols = self.n_tfidf_cols if self.n_tfidf_cols is not None else X.shape[1]
+        return self.nb_.predict(X[:, :n_cols])
+
+    def predict_proba(self, X):
+        n_cols = self.n_tfidf_cols if self.n_tfidf_cols is not None else X.shape[1]
+        return self.nb_.predict_proba(X[:, :n_cols])
+
 
 class FakeNewsPredictor:
     """
@@ -65,15 +128,15 @@ class FakeNewsPredictor:
     """
     
     def __init__(self, model_path=None):
-        self.model_path = model_path or os.path.join(
-            os.path.dirname(__file__), 'voting_classifier.pkl'
-        )
-        self.vectorizer_path = os.path.join(
-            os.path.dirname(__file__), 'tfidf_vectorizer.pkl'
-        )
+        model_dir = os.environ.get('MODEL_PATH', os.path.dirname(__file__))
+        os.makedirs(model_dir, exist_ok=True)
+
+        self.model_path = model_path or os.path.join(model_dir, 'voting_classifier.pkl')
+        self.vectorizer_path = os.path.join(model_dir, 'tfidf_vectorizer.pkl')
         
         self.model = None
         self.vectorizer = None
+        self.tfidf_feature_count = None
         self.is_trained = False
         
         # Try to load existing model
@@ -103,11 +166,41 @@ class FakeNewsPredictor:
         
         # Remove numbers
         text = re.sub(r'\d+', '', text)
+
+        # Remove extended unicode symbols (e.g., many emoji/codepoints outside BMP)
+        text = re.sub(r'[\U00010000-\U0010ffff]', '', text, flags=re.UNICODE)
+
+        if SPACY_AVAILABLE and nlp is not None:
+            doc = nlp(text[:100000])
+            text = ' '.join([t.lemma_ for t in doc if not t.is_space])
+
+        text = ' '.join(text.split())
         
         # Note: stopword removal is handled by TF-IDF vectorizer (stop_words='english')
         # No manual stopword removal here to keep preprocessing consistent
         
         return text
+
+    def _extract_linguistic_features(self, text):
+        words = text.split()
+        total_words = max(len(words), 1)
+
+        if TEXTBLOB_AVAILABLE:
+            tb = TextBlob(text)
+            sentiment = float(tb.sentiment.polarity)
+            subjectivity = float(tb.sentiment.subjectivity)
+        else:
+            sentiment = 0.0
+            subjectivity = 0.5
+
+        punct_ratio = (text.count('!') + text.count('?')) / max(len(text), 1)
+        caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
+        mean_word_len = float(sum(len(w) for w in words) / total_words) if words else 0.0
+        unique_ratio = float(len(set(words)) / total_words) if words else 0.0
+        ner_density = float(len(nlp(text[:500]).ents) / 10.0) if SPACY_AVAILABLE and nlp is not None else 0.0
+        readability = float(textstat.flesch_reading_ease(text) / 100.0) if TEXTSTAT_AVAILABLE else 0.5
+
+        return np.array([[sentiment, subjectivity, punct_ratio, caps_ratio, mean_word_len, unique_ratio, ner_density, readability]])
     
     def _create_model(self):
         """
@@ -122,43 +215,37 @@ class FakeNewsPredictor:
         - Strong regularization (C parameter)
         - Increased alpha for Naive Bayes smoothing
         """
-        # Random Forest with regularization to prevent overfitting
         rf_clf = RandomForestClassifier(
-            n_estimators=30,           # Reduced for speed
-            max_depth=8,               # Limits tree complexity
-            min_samples_split=10,      # Requires more samples to split (regularization)
-            min_samples_leaf=5,        # Minimum samples in leaf nodes
-            max_features='sqrt',       # Use sqrt of features (reduces overfitting)
-            class_weight='balanced',   # Handle class imbalance
+            n_estimators=200,
+            max_depth=20,
+            min_samples_split=5,
+            min_samples_leaf=2,
+            max_features='sqrt',
+            class_weight='balanced',
             random_state=42,
-            n_jobs=1
+            n_jobs=-1
         )
         
-        # Logistic Regression with strong L2 regularization
         lr_clf = LogisticRegression(
-            C=0.1,                     # Strong regularization (smaller C = more regularization)
-            penalty='l2',              # L2 regularization
+            C=1.0,
+            penalty='l2',
             solver='lbfgs',
-            max_iter=1000,
-            class_weight='balanced',   # Handle class imbalance
+            max_iter=2000,
+            class_weight='balanced',
             random_state=42,
-            n_jobs=1
         )
         
-        # Naive Bayes with higher smoothing
-        nb_clf = MultinomialNB(
-            alpha=1.0                  # Increased from 0.1 (more smoothing = less overfitting)
-        )
+        nb_clf = MultinomialNB(alpha=0.1)
+        nb_wrapper = TfidfSliceNB(base_nb=nb_clf)
         
-        # Voting Classifier (soft voting for probability-based decisions)
         voting_clf = VotingClassifier(
             estimators=[
                 ('rf', rf_clf),
                 ('lr', lr_clf),
-                ('nb', nb_clf)
+                ('nb', nb_wrapper)
             ],
             voting='soft',
-            n_jobs=1
+            weights=[2, 1, 1]
         )
         
         return voting_clf
@@ -173,13 +260,13 @@ class FakeNewsPredictor:
         - Reduced max_df (ignore too common words)
         """
         return TfidfVectorizer(
-            max_features=3000,         # Good feature count
-            ngram_range=(1, 1),        # Unigrams only (bigrams too slow for large datasets)
-            min_df=3,                  # Minimum document frequency
-            max_df=0.9,               # Ignore words in > 90% of docs
+            max_features=50000,
+            ngram_range=(1, 2),
+            min_df=2,
+            max_df=0.95,
             sublinear_tf=True,
-            strip_accents='unicode',   # Normalize text
-            stop_words='english',      # Use built-in English stop words
+            strip_accents='unicode',
+            stop_words='english',
             lowercase=True
         )
     
@@ -188,14 +275,33 @@ class FakeNewsPredictor:
         try:
             if os.path.exists(self.model_path) and os.path.exists(self.vectorizer_path):
                 try:
-                    self.model = joblib.load(self.model_path)
+                    model_blob = joblib.load(self.model_path)
                     self.vectorizer = joblib.load(self.vectorizer_path)
+
+                    if isinstance(model_blob, dict) and 'model' in model_blob:
+                        self.model = model_blob.get('model')
+                        self.tfidf_feature_count = model_blob.get('tfidf_feature_count')
+                    else:
+                        self.model = model_blob
+                        self.tfidf_feature_count = getattr(model_blob, 'tfidf_feature_count', None)
                 except Exception:
                     import pickle
+
                     with open(self.model_path, 'rb') as f:
-                        self.model = pickle.load(f)
+                        model_blob = pickle.load(f)
                     with open(self.vectorizer_path, 'rb') as f:
                         self.vectorizer = pickle.load(f)
+
+                    if isinstance(model_blob, dict) and 'model' in model_blob:
+                        self.model = model_blob.get('model')
+                        self.tfidf_feature_count = model_blob.get('tfidf_feature_count')
+                    else:
+                        self.model = model_blob
+                        self.tfidf_feature_count = getattr(model_blob, 'tfidf_feature_count', None)
+
+                if self.tfidf_feature_count is None and self.vectorizer is not None:
+                    self.tfidf_feature_count = len(self.vectorizer.get_feature_names_out())
+
                 self.is_trained = True
                 print("Model loaded successfully")
             else:
@@ -218,14 +324,28 @@ class FakeNewsPredictor:
         
         print("Creating TF-IDF vectors...")
         self.vectorizer = self._create_vectorizer()
-        X = self.vectorizer.fit_transform(processed_texts)
+        X_tfidf = self.vectorizer.fit_transform(processed_texts)
+        self.tfidf_feature_count = X_tfidf.shape[1]
+
+        if SCIPY_AVAILABLE:
+            ling = np.vstack([self._extract_linguistic_features(t) for t in processed_texts])
+            X = hstack([X_tfidf, csr_matrix(ling)])
+        else:
+            X = X_tfidf
         
         print("Training Voting Classifier...")
         self.model = self._create_model()
+        self.model.set_params(nb__n_tfidf_cols=self.tfidf_feature_count)
         self.model.fit(X, labels)
         
         # Save model and vectorizer
-        joblib.dump(self.model, self.model_path)
+        joblib.dump(
+            {
+                'model': self.model,
+                'tfidf_feature_count': self.tfidf_feature_count
+            },
+            self.model_path
+        )
         joblib.dump(self.vectorizer, self.vectorizer_path)
         
         self.is_trained = True
@@ -248,8 +368,13 @@ class FakeNewsPredictor:
         if not self.is_trained:
             return self._fallback_predict(text, processed_text)
         
-        # Vectorize
-        X = self.vectorizer.transform([processed_text])
+        # Vectorize and append linguistic features (if scipy is available)
+        X_tfidf = self.vectorizer.transform([processed_text])
+        if SCIPY_AVAILABLE:
+            ling = self._extract_linguistic_features(processed_text)
+            X = hstack([X_tfidf, csr_matrix(ling)])
+        else:
+            X = X_tfidf
         
         # Get prediction and probabilities
         prediction = self.model.predict(X)[0]
@@ -264,16 +389,35 @@ class FakeNewsPredictor:
         # Format result
         pred_label = 'FAKE' if prediction == 1 else 'REAL'
         confidence = float(max(probabilities) * 100)
+
+        if TEXTBLOB_AVAILABLE:
+            tb = TextBlob(text)
+            polarity = float(tb.sentiment.polarity)
+            subjectivity = float(tb.sentiment.subjectivity)
+        else:
+            polarity = 0.0
+            subjectivity = 0.5
+
+        caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
+        exclamation_ratio = (text.count('!') + text.count('?')) / max(len(text), 1)
+        linguistic_flags = self._generate_linguistic_flags(text)
         
         return {
             'prediction': pred_label,
             'confidence': round(confidence, 2),
             'details': {
-                'sentimentScore': 0,  # Placeholder for compatibility
-                'objectivityScore': round((1 - probabilities[1]) * 100),
+                'sentimentScore': round(polarity * 100, 2),
+                'objectivityScore': round((1 - subjectivity) * 100),
                 'clickbaitScore': round(probabilities[1] * 100) if pred_label == 'FAKE' else round(probabilities[1] * 50),
                 'sourceCredibility': round((1 - probabilities[1]) * 100),
-                'flags': self._generate_flags(text, pred_label, probabilities[1]),
+                'linguisticFlags': linguistic_flags,
+                'featureBreakdown': {
+                    'sentiment': round(polarity, 4),
+                    'subjectivity': round(subjectivity, 4),
+                    'caps_ratio': round(caps_ratio, 4),
+                    'exclamation_ratio': round(exclamation_ratio, 4)
+                },
+                'flags': linguistic_flags,
                 'votes': votes,
                 'probabilities': {
                     'fake': round(float(probabilities[1]), 4),
@@ -281,6 +425,92 @@ class FakeNewsPredictor:
                 }
             }
         }
+
+    def _generate_linguistic_flags(self, text):
+        flags = []
+        text_lower = text.lower()
+        caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
+        exclamations = text.count('!') + text.count('?')
+
+        if TEXTBLOB_AVAILABLE:
+            subjectivity = float(TextBlob(text).sentiment.subjectivity)
+        else:
+            subjectivity = 0.5
+
+        if caps_ratio > 0.15:
+            flags.append('Excessive capitalisation')
+        if exclamations > 2:
+            flags.append('Sensationalist punctuation')
+        if subjectivity > 0.7:
+            flags.append('Highly subjective language')
+        if not re.search(r'according to|source:|cited|study|research|reported by', text_lower):
+            flags.append('No source citations found')
+
+        clickbait_words = [
+            'shocking', 'unbelievable', 'you won\'t believe', 'breaking', 'secret',
+            'exposed', 'what happens next', 'doctors hate'
+        ]
+        if any(w in text_lower for w in clickbait_words):
+            flags.append('Clickbait language detected')
+
+        return flags[:3]
+
+    def fetch_realtime_articles(self, api_key, query='fake news', page_size=20):
+        if not REQUESTS_AVAILABLE:
+            return []
+
+        try:
+            response = req_lib.get(
+                'https://newsapi.org/v2/everything',
+                params={
+                    'q': query,
+                    'language': 'en',
+                    'sortBy': 'publishedAt',
+                    'pageSize': page_size,
+                    'apiKey': api_key
+                },
+                timeout=15
+            )
+
+            if response.status_code == 401:
+                print('Invalid key')
+                return []
+            if response.status_code == 429:
+                print('Rate limit')
+                return []
+            if response.status_code != 200:
+                print(f'NewsAPI error status: {response.status_code}')
+                return []
+
+            payload = response.json()
+            articles = payload.get('articles', [])
+            results = []
+            for article in articles:
+                content = article.get('content') or article.get('description') or article.get('title', '')
+                results.append(
+                    {
+                        'title': article.get('title', ''),
+                        'content': content,
+                        'source': (article.get('source') or {}).get('name', ''),
+                        'url': article.get('url', ''),
+                        'publishedAt': article.get('publishedAt', '')
+                    }
+                )
+            return results
+        except Exception as e:
+            print(f'Failed to fetch realtime articles: {e}')
+            return []
+
+    def predict_batch(self, articles):
+        results = []
+        for article in articles:
+            result = self.predict(article.get('content', ''))
+            result['title'] = article.get('title', '')
+            result['source'] = article.get('source', '')
+            result['url'] = article.get('url', '')
+            result['publishedAt'] = article.get('publishedAt', '')
+            results.append(result)
+        return results
     
     def _fallback_predict(self, original_text, processed_text):
         """
