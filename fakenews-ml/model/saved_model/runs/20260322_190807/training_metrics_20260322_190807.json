@@ -33,11 +33,5 @@
   "incremental": {
     "rows": 0,
     "applied": false
-  },
-  "snapshot": {
-    "directory": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\saved_model\\runs\\20260322_190807",
-    "model": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\saved_model\\runs\\20260322_190807\\voting_classifier_20260322_190807.pkl",
-    "vectorizer": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\saved_model\\runs\\20260322_190807\\tfidf_vectorizer_20260322_190807.pkl",
-    "metrics": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\saved_model\\runs\\20260322_190807\\training_metrics_20260322_190807.json"
   }
 }

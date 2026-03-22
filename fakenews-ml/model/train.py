@@ -16,18 +16,20 @@ CSV Format Expected:
 """
 
 import argparse
+import datetime
 import json
 import math
 import os
 import re
 import random
+import shutil
 from urllib.parse import urlparse
 
 import joblib
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import accuracy_score, roc_auc_score, matthews_corrcoef, f1_score
+from sklearn.metrics import accuracy_score, roc_auc_score, matthews_corrcoef, f1_score, confusion_matrix, classification_report
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.pipeline import Pipeline as SkPipeline
 from predictor import FakeNewsPredictor
@@ -279,11 +281,58 @@ def evaluate_model(predictor, X_test, y_test):
     print(f"AUC-ROC      | {auc_roc:.4f}")
     print(f"MCC          | {mcc:.4f}")
 
+    cm = confusion_matrix(y_test, predictions, labels=[0, 1])
+    report = classification_report(
+        y_test,
+        predictions,
+        labels=[0, 1],
+        target_names=['REAL', 'FAKE'],
+        output_dict=True,
+        zero_division=0,
+    )
+
+    print("\nConfusion Matrix (rows=true, cols=pred):")
+    print("             Pred REAL   Pred FAKE")
+    print(f"True REAL     {int(cm[0][0]):8d}   {int(cm[0][1]):8d}")
+    print(f"True FAKE     {int(cm[1][0]):8d}   {int(cm[1][1]):8d}")
+
+    print("\nClass Report")
+    print("Class | Precision | Recall | F1")
+    print("---------------------------------")
+    print(f"REAL  | {report['REAL']['precision']:.4f}    | {report['REAL']['recall']:.4f} | {report['REAL']['f1-score']:.4f}")
+    print(f"FAKE  | {report['FAKE']['precision']:.4f}    | {report['FAKE']['recall']:.4f} | {report['FAKE']['f1-score']:.4f}")
+
     return {
         'accuracy': accuracy,
         'f1_macro': f1_macro,
         'auc_roc': auc_roc,
         'mcc': mcc,
+        'confusion_matrix': cm.tolist(),
+        'classification_report': report,
+    }
+
+
+def _save_artifact_snapshot(model_path, vectorizer_path, metrics_path, snapshot_dir=None):
+    base_dir = os.path.dirname(model_path)
+    runs_dir = snapshot_dir or os.path.join(base_dir, 'runs')
+    ts = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+    out_dir = os.path.join(runs_dir, ts)
+    os.makedirs(out_dir, exist_ok=True)
+
+    model_snapshot = os.path.join(out_dir, f'voting_classifier_{ts}.pkl')
+    vectorizer_snapshot = os.path.join(out_dir, f'tfidf_vectorizer_{ts}.pkl')
+    metrics_snapshot = os.path.join(out_dir, f'training_metrics_{ts}.json')
+
+    shutil.copy2(model_path, model_snapshot)
+    shutil.copy2(vectorizer_path, vectorizer_snapshot)
+    if os.path.exists(metrics_path):
+        shutil.copy2(metrics_path, metrics_snapshot)
+
+    return {
+        'directory': out_dir,
+        'model': model_snapshot,
+        'vectorizer': vectorizer_snapshot,
+        'metrics': metrics_snapshot if os.path.exists(metrics_snapshot) else '',
     }
 
 
@@ -396,8 +445,25 @@ def main():
     parser.add_argument('--cv-folds', type=int, default=3, help='Number of cross-validation folds (default: 3)')
     parser.add_argument('--cv-jobs', type=int, default=1, help='Parallel jobs for CV (default: 1 for stability)')
     parser.add_argument('--skip-eval', action='store_true', help='Skip CV/test evaluation for faster training runs')
+    parser.add_argument('--profile', type=str, default='custom', choices=['quick', 'full', 'custom'], help='Training preset profile')
+    parser.add_argument('--snapshot-dir', type=str, default='', help='Optional directory for timestamped artifact snapshots')
     parser.set_defaults(deduplicate=True)
     args = parser.parse_args()
+
+    if args.profile == 'quick':
+        args.max_samples = 8000
+        args.min_text_chars = 60
+        args.cv_folds = 2
+        args.cv_jobs = 1
+        args.skip_eval = True
+        print("Using QUICK profile (fast training, skip eval).")
+    elif args.profile == 'full':
+        args.max_samples = 50000
+        args.min_text_chars = 40
+        args.cv_folds = 3
+        args.cv_jobs = 1
+        args.skip_eval = False
+        print("Using FULL profile (larger sample + evaluation).")
 
     effective_max_samples = args.max_samples if args.max_samples and args.max_samples > 0 else None
     
@@ -641,7 +707,19 @@ def main():
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics_payload, f, indent=2)
 
+    snapshot_info = _save_artifact_snapshot(
+        predictor.model_path,
+        predictor.vectorizer_path,
+        metrics_path,
+        snapshot_dir=args.snapshot_dir.strip() or None,
+    )
+
+    metrics_payload['snapshot'] = snapshot_info
+    with open(metrics_path, 'w', encoding='utf-8') as f:
+        json.dump(metrics_payload, f, indent=2)
+
     print(f"Metrics saved to: {metrics_path}")
+    print(f"Snapshot saved to: {snapshot_info['directory']}")
 
 
 if __name__ == '__main__':

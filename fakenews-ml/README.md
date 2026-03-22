@@ -30,6 +30,37 @@ python train.py
 python train.py --data path/to/dataset.csv
 ```
 
+### 2.1 One-Command Training Profiles
+
+Quick profile (fast, stable, skips heavy eval):
+```bash
+python model/train.py --data data/WELFake_Dataset.csv --profile quick
+```
+
+Full profile (larger sample + CV + evaluation metrics):
+```bash
+python model/train.py --data data/WELFake_Dataset.csv --profile full
+```
+
+Custom profile (manual tuning):
+```bash
+python model/train.py --data data/WELFake_Dataset.csv \
+  --max-samples 20000 --min-text-chars 60 --cv-folds 3 --cv-jobs 1
+```
+
+### 2.2 Training Outputs
+
+Each run saves:
+- Latest model: `model/saved_model/voting_classifier.pkl`
+- Latest vectorizer: `model/saved_model/tfidf_vectorizer.pkl`
+- Latest metrics: `model/saved_model/training_metrics.json`
+- Versioned snapshot folder: `model/saved_model/runs/<UTC_TIMESTAMP>/`
+
+Evaluation output includes:
+- Accuracy / F1 / AUC-ROC / MCC
+- Confusion matrix
+- Per-class classification report (REAL and FAKE)
+
 ### 3. Run the Service
 ```bash
 # Development
