@@ -76,6 +76,17 @@ const NewsChecker = ({
   const charsRemaining = MIN_CHARS - newsText.length;
   const charsUsed = newsText.length;
   const isAtLimit = charsUsed >= maxChars;
+  const usedPct = (charsUsed / maxChars) * 100;
+  const limitColor = usedPct >= 95 ? '#dc2626'
+    : usedPct >= 80 ? '#d97706'
+    : charsUsed >= MIN_CHARS ? '#16a34a'
+    : '#6b7280';
+
+  useEffect(() => {
+    if (!isLoading && !isAnalyzing) {
+      setAnalysisProgress('');
+    }
+  }, [isLoading, isAnalyzing]);
 
   // Handle text change
   const handleTextChange = (e) => {
@@ -97,15 +108,17 @@ const NewsChecker = ({
   const handleCheck = () => {
     if (isValidLength && !isAnalyzing && !isLoading) {
       setIsAnalyzing(true);
-      setAnalysisProgress('Sending to server...');
-      
-      // Send analysis via WebSocket
-      socketService.sendAnalysis(newsText, 'text', isLoggedIn ? 'user-id' : null);
+      setAnalysisProgress('Preprocessing text...');
+      setTimeout(() => setAnalysisProgress('Extracting NLP features...'), 600);
+      setTimeout(() => setAnalysisProgress('Running voting classifiers...'), 1200);
+      setTimeout(() => setAnalysisProgress('Finalising result...'), 1800);
 
-      // Also call the original callback if provided
+      // Use HTTP REST path only (onCheck handles the API call in Home.jsx)
       if (onCheck) {
         onCheck(newsText);
       }
+
+      // WebSocket is used for progress updates only, not triggering analysis
     }
   };
 
@@ -148,7 +161,7 @@ const NewsChecker = ({
             )}
           </div>
           <div className={`char-limit ${isAtLimit ? 'at-limit' : ''}`}>
-            <span>{charsUsed}/{maxChars}</span>
+            <span style={{ color: limitColor, fontWeight: usedPct >= 80 ? 600 : 400 }}>{charsUsed}/{maxChars}</span>
             {!isLoggedIn && (
               <span className="limit-hint">Login for more</span>
             )}
