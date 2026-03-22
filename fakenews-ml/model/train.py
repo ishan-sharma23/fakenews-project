@@ -17,6 +17,7 @@ CSV Format Expected:
 
 import argparse
 import json
+import math
 import os
 import re
 import random
@@ -120,12 +121,14 @@ def _read_and_clean_dataset(file_path, max_samples=None, min_text_chars=20, dedu
         if l_stripped in valid_label_map:
             # Strip Reuters wire prefix to reduce source-style leakage.
             clean_text = re.sub(r'^Reuters\s*-?\s*', '', t, flags=re.IGNORECASE)
-            normalized = re.sub(r'\s+', ' ', clean_text).strip()
             if deduplicate:
+                normalized = re.sub(r'\s+', ' ', clean_text).strip()
                 dedup_key = normalized.lower()
                 if dedup_key in seen_keys:
                     continue
                 seen_keys.add(dedup_key)
+            else:
+                normalized = clean_text.strip()
 
             if len(normalized) >= min_text_chars:
                 cleaned.append((clean_text, valid_label_map[l_stripped], idx))
@@ -249,15 +252,17 @@ def evaluate_model(predictor, X_test, y_test):
     """Evaluate the trained model"""
     print("\nEvaluating model...")
 
-    predictions = []
-    fake_probs = []
-    for text in X_test:
-        result = predictor.predict(text)
-        pred = 1 if result['prediction'] == 'FAKE' else 0
-        predictions.append(pred)
+    processed = [predictor._preprocess_text(t) for t in X_test]
+    X_test_tfidf = predictor.vectorizer.transform(processed)
+    if SCIPY_AVAILABLE:
+        ling = np.vstack([predictor._extract_linguistic_features(t) for t in processed])
+        X_test_vec = hstack([X_test_tfidf, csr_matrix(ling)])
+    else:
+        X_test_vec = X_test_tfidf
 
-        prob_fake = result.get('details', {}).get('probabilities', {}).get('fake', 0.5)
-        fake_probs.append(float(prob_fake))
+    predictions = predictor.model.predict(X_test_vec)
+    probabilities = predictor.model.predict_proba(X_test_vec)
+    fake_probs = probabilities[:, 1]
 
     accuracy = accuracy_score(y_test, predictions)
     f1_macro = f1_score(y_test, predictions, average='macro')
@@ -388,6 +393,9 @@ def main():
     parser.add_argument('--metrics-out', type=str, default='', help='Optional path to save JSON training metrics')
     parser.add_argument('--deduplicate', dest='deduplicate', action='store_true', help='Drop duplicate articles during cleaning')
     parser.add_argument('--no-deduplicate', dest='deduplicate', action='store_false', help='Keep duplicates in dataset')
+    parser.add_argument('--cv-folds', type=int, default=3, help='Number of cross-validation folds (default: 3)')
+    parser.add_argument('--cv-jobs', type=int, default=1, help='Parallel jobs for CV (default: 1 for stability)')
+    parser.add_argument('--skip-eval', action='store_true', help='Skip CV/test evaluation for faster training runs')
     parser.set_defaults(deduplicate=True)
     args = parser.parse_args()
 
@@ -490,51 +498,81 @@ def main():
     )
     joblib.dump(predictor.vectorizer, predictor.vectorizer_path)
     
-    # Cross-validation to detect overfitting
-    print("\n" + "="*50)
-    print("Cross-Validation (5-fold) to detect overfitting:")
-    print("="*50)
+    cv_scores = np.array([])
+    test_metrics = {
+        'accuracy': math.nan,
+        'f1_macro': math.nan,
+        'auc_roc': math.nan,
+        'mcc': math.nan,
+    }
+    train_metrics = {
+        'accuracy': math.nan,
+        'f1_macro': math.nan,
+        'auc_roc': math.nan,
+        'mcc': math.nan,
+    }
+    gap = math.nan
 
-    cv_pipe = SkPipeline(
-        [
-            (
-                'tfidf',
-                TfidfVectorizer(
-                    max_features=50000,
-                    ngram_range=(1, 2),
-                    min_df=2,
-                    max_df=0.95,
-                    sublinear_tf=True,
-                    stop_words='english',
-                ),
-            ),
-            ('clf', predictor.model),
-        ]
-    )
-    cv_scores = cross_val_score(cv_pipe, X_train, y_train, cv=5, scoring='accuracy', n_jobs=-1)
-    print(f"CV Scores: {[f'{s:.4f}' for s in cv_scores]}")
-    print(f"CV Mean: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
-
-    # Evaluate on test set
-    test_metrics = evaluate_model(predictor, X_test, y_test)
-
-    # Check for overfitting
-    print("\n" + "="*50)
-    print("OVERFITTING CHECK:")
-    print("="*50)
-    train_metrics = evaluate_model(predictor, X_train[:200], y_train[:200])
-    gap = train_metrics['accuracy'] - test_metrics['accuracy']
-    
-    if gap > 0.10:
-        print(f"⚠️  WARNING: Possible overfitting detected!")
-        print(f"   Train accuracy: {train_metrics['accuracy']:.4f}")
-        print(f"   Test accuracy:  {test_metrics['accuracy']:.4f}")
-        print(f"   Gap: {gap:.4f} (>10%)")
+    if args.skip_eval:
+        print("\nSkipping CV and evaluation (--skip-eval enabled).")
     else:
-        print(f"✅ Model appears well-generalized")
-        print(f"   Train accuracy: {train_metrics['accuracy']:.4f}")
-        print(f"   Test accuracy:  {test_metrics['accuracy']:.4f}")
-        print(f"   Gap: {gap:.4f}")
+        # Cross-validation to detect overfitting
+        print("\n" + "="*50)
+        print(f"Cross-Validation ({args.cv_folds}-fold) to detect overfitting:")
+        print("="*50)
+
+        cv_pipe = SkPipeline(
+            [
+                (
+                    'tfidf',
+                    TfidfVectorizer(
+                        max_features=50000,
+                        ngram_range=(1, 2),
+                        min_df=2,
+                        max_df=0.95,
+                        sublinear_tf=True,
+                        stop_words='english',
+                    ),
+                ),
+                ('clf', predictor.model),
+            ]
+        )
+        try:
+            cv_scores = cross_val_score(
+                cv_pipe,
+                X_train,
+                y_train,
+                cv=max(2, args.cv_folds),
+                scoring='accuracy',
+                n_jobs=max(1, args.cv_jobs),
+            )
+            print(f"CV Scores: {[f'{s:.4f}' for s in cv_scores]}")
+            print(f"CV Mean: {cv_scores.mean():.4f} (+/- {cv_scores.std() * 2:.4f})")
+        except KeyboardInterrupt:
+            print("CV interrupted by user. Continuing with train/test metrics.")
+        except Exception as cv_error:
+            print(f"WARNING: CV failed ({cv_error}). Continuing with train/test metrics.")
+
+        # Evaluate on test set
+        test_metrics = evaluate_model(predictor, X_test, y_test)
+
+        # Check for overfitting
+        print("\n" + "="*50)
+        print("OVERFITTING CHECK:")
+        print("="*50)
+        train_metrics = evaluate_model(predictor, X_train[:200], y_train[:200])
+        gap = train_metrics['accuracy'] - test_metrics['accuracy']
+        
+        if gap > 0.10:
+            print(f"⚠️  WARNING: Possible overfitting detected!")
+            print(f"   Train accuracy: {train_metrics['accuracy']:.4f}")
+            print(f"   Test accuracy:  {test_metrics['accuracy']:.4f}")
+            print(f"   Gap: {gap:.4f} (>10%)")
+        else:
+            print(f"✅ Model appears well-generalized")
+            print(f"   Train accuracy: {train_metrics['accuracy']:.4f}")
+            print(f"   Test accuracy:  {test_metrics['accuracy']:.4f}")
+            print(f"   Gap: {gap:.4f}")
 
     newsapi_key = args.newsapi_key or os.environ.get('NEWSAPI_KEY', '')
     queries = [q.strip() for q in args.newsapi_queries.split(',') if q.strip()]
@@ -560,8 +598,12 @@ def main():
     print(f"F1 macro          | {test_metrics['f1_macro']:.4f}")
     print(f"AUC-ROC           | {test_metrics['auc_roc']:.4f}")
     print(f"MCC               | {test_metrics['mcc']:.4f}")
-    print(f"CV mean accuracy  | {cv_scores.mean():.4f}")
-    print(f"CV std (x2)       | {(cv_scores.std() * 2):.4f}")
+    if cv_scores.size > 0:
+        print(f"CV mean accuracy  | {cv_scores.mean():.4f}")
+        print(f"CV std (x2)       | {(cv_scores.std() * 2):.4f}")
+    else:
+        print("CV mean accuracy  | n/a")
+        print("CV std (x2)       | n/a")
     print(f"Incremental rows  | {incremental_count}")
     print(f"Incremental done  | {incremental_applied}")
     print("="*50)
@@ -586,8 +628,8 @@ def main():
             'train_probe': train_metrics,
             'gap': float(gap),
             'cv_scores': [float(s) for s in cv_scores],
-            'cv_mean': float(cv_scores.mean()),
-            'cv_std_x2': float(cv_scores.std() * 2),
+            'cv_mean': float(cv_scores.mean()) if cv_scores.size > 0 else math.nan,
+            'cv_std_x2': float(cv_scores.std() * 2) if cv_scores.size > 0 else math.nan,
         },
         'incremental': {
             'rows': int(incremental_count),
@@ -595,6 +637,7 @@ def main():
         },
     }
 
+    os.makedirs(os.path.dirname(metrics_path), exist_ok=True)
     with open(metrics_path, 'w', encoding='utf-8') as f:
         json.dump(metrics_payload, f, indent=2)
 
