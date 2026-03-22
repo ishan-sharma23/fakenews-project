@@ -88,7 +88,7 @@ Create or edit `.env` file in `fakenews-backend/`:
 
 ```env
 # MongoDB
-MONGO_URI=mongodb://localhost:27017/fakenews
+MONGO_URI=mongodb://localhost:27018/fakenews
 
 # JWT
 JWT_SECRET=your_super_secret_jwt_key_here

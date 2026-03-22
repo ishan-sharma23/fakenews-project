@@ -9,23 +9,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Download NLP models BEFORE copying app code (better layer caching)
-RUN python -m spacy download en_core_web_sm
-RUN python -c "import nltk; nltk.download('stopwords',quiet=True); nltk.download('punkt',quiet=True)"
-RUN python -c "from textblob import download_corpora; download_corpora()" || true
+# Skip optional NLP corpus/model downloads during build.
+# Runtime code already handles missing assets with graceful fallbacks.
 
 COPY . .
 
 # Create model save dir (fixes Docker volume path mismatch)
 RUN mkdir -p /app/model/saved_model
 
-# Train on startup if dataset exists
-RUN if [ -f data/WELFake_Dataset.csv ] && \
-    [ ! -f model/saved_model/voting_classifier.pkl ]; then \
-      python model/train.py --data data/WELFake_Dataset.csv; \
-    elif [ ! -f model/saved_model/voting_classifier.pkl ]; then \
-      python model/train.py --sample; \
-    fi
+# Do not train during image build.
+# The full WELFake dataset can exceed memory limits in Docker build environments.
+# If no trained model is present at runtime, the service uses predictor fallback logic.
 
 EXPOSE 5001
 ENV FLASK_ENV=production

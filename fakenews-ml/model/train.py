@@ -16,6 +16,7 @@ CSV Format Expected:
 """
 
 import argparse
+import json
 import os
 import re
 import random
@@ -45,7 +46,7 @@ except Exception:
     SCIPY_AVAILABLE = False
 
 
-def _read_and_clean_dataset(file_path):
+def _read_and_clean_dataset(file_path, max_samples=None, min_text_chars=20, deduplicate=True):
     """Load and normalize dataset into (text, label, row_index) tuples."""
     print(f"Loading dataset from {file_path}...")
     df = pd.read_csv(
@@ -113,13 +114,38 @@ def _read_and_clean_dataset(file_path):
     }
 
     cleaned = []
+    seen_keys = set()
     for idx, t, l in zip(row_indices, texts, raw_labels):
         l_stripped = str(l).strip()
         if l_stripped in valid_label_map:
             # Strip Reuters wire prefix to reduce source-style leakage.
             clean_text = re.sub(r'^Reuters\s*-?\s*', '', t, flags=re.IGNORECASE)
-            if len(clean_text.strip()) > 20:
+            normalized = re.sub(r'\s+', ' ', clean_text).strip()
+            if deduplicate:
+                dedup_key = normalized.lower()
+                if dedup_key in seen_keys:
+                    continue
+                seen_keys.add(dedup_key)
+
+            if len(normalized) >= min_text_chars:
                 cleaned.append((clean_text, valid_label_map[l_stripped], idx))
+
+    if max_samples and len(cleaned) > max_samples:
+        real_rows = [row for row in cleaned if row[1] == 0]
+        fake_rows = [row for row in cleaned if row[1] == 1]
+
+        total_rows = max(len(cleaned), 1)
+        target_real = max(1, int(max_samples * (len(real_rows) / total_rows)))
+        target_fake = max(1, max_samples - target_real)
+
+        rng = random.Random(42)
+        rng.shuffle(real_rows)
+        rng.shuffle(fake_rows)
+
+        sampled = real_rows[:target_real] + fake_rows[:target_fake]
+        rng.shuffle(sampled)
+        cleaned = sampled
+        print(f"Applied sample cap: keeping {len(cleaned)} rows (max_samples={max_samples})")
 
     print(
         f"Kept {len(cleaned)} rows with valid labels "
@@ -129,7 +155,7 @@ def _read_and_clean_dataset(file_path):
     return cleaned
 
 
-def load_dataset(file_path):
+def load_dataset(file_path, max_samples=None, min_text_chars=20, deduplicate=True):
     """
     Load dataset from CSV file
     
@@ -138,7 +164,12 @@ def load_dataset(file_path):
     - ISOT: columns 'title', 'text', 'label'
     - Custom: columns 'text'/'content', 'label'/'class'
     """
-    cleaned = _read_and_clean_dataset(file_path)
+    cleaned = _read_and_clean_dataset(
+        file_path,
+        max_samples=max_samples,
+        min_text_chars=min_text_chars,
+        deduplicate=deduplicate,
+    )
 
     # Requested deterministic shuffle for random-mode loading.
     random.seed(42)
@@ -352,7 +383,15 @@ def main():
     parser.add_argument('--newsapi-key', type=str, default='', help='NewsAPI key (falls back to NEWSAPI_KEY env var)')
     parser.add_argument('--newsapi-queries', type=str, default='misinformation,fake news,disinformation', help='Comma-separated NewsAPI queries')
     parser.add_argument('--use-smote', action='store_true', help='Apply SMOTE over vectorized training data')
+    parser.add_argument('--max-samples', type=int, default=120000, help='Cap cleaned dataset size for memory-safe training (0 disables cap)')
+    parser.add_argument('--min-text-chars', type=int, default=40, help='Minimum cleaned text length to keep a sample')
+    parser.add_argument('--metrics-out', type=str, default='', help='Optional path to save JSON training metrics')
+    parser.add_argument('--deduplicate', dest='deduplicate', action='store_true', help='Drop duplicate articles during cleaning')
+    parser.add_argument('--no-deduplicate', dest='deduplicate', action='store_false', help='Keep duplicates in dataset')
+    parser.set_defaults(deduplicate=True)
     args = parser.parse_args()
+
+    effective_max_samples = args.max_samples if args.max_samples and args.max_samples > 0 else None
     
     # Load or create dataset
     if args.sample:
@@ -360,7 +399,12 @@ def main():
         texts, labels = create_sample_dataset()
     elif os.path.exists(args.data):
         if args.split_mode == 'temporal':
-            cleaned = _read_and_clean_dataset(args.data)
+            cleaned = _read_and_clean_dataset(
+                args.data,
+                max_samples=effective_max_samples,
+                min_text_chars=args.min_text_chars,
+                deduplicate=args.deduplicate,
+            )
             cleaned = sorted(cleaned, key=lambda x: x[2])
             texts = [t for t, _, _ in cleaned]
             labels = [l for _, l, _ in cleaned]
@@ -378,7 +422,12 @@ def main():
             if imbalance > 15:
                 print(f"WARNING: Class imbalance detected ({imbalance:.1f}% difference)")
         else:
-            texts, labels = load_dataset(args.data)
+            texts, labels = load_dataset(
+                args.data,
+                max_samples=effective_max_samples,
+                min_text_chars=args.min_text_chars,
+                deduplicate=args.deduplicate,
+            )
     else:
         print(f"Dataset not found at: {args.data}")
         print("Using sample dataset instead.")
@@ -516,6 +565,40 @@ def main():
     print(f"Incremental rows  | {incremental_count}")
     print(f"Incremental done  | {incremental_applied}")
     print("="*50)
+
+    metrics_path = args.metrics_out or os.path.join(os.path.dirname(predictor.model_path), 'training_metrics.json')
+    metrics_payload = {
+        'dataset': {
+            'path': args.data,
+            'split_mode': args.split_mode,
+            'max_samples': effective_max_samples,
+            'min_text_chars': args.min_text_chars,
+            'deduplicate': args.deduplicate,
+            'train_size': len(X_train),
+            'test_size': len(X_test),
+            'label_distribution': {
+                'real': int(sum(1 for y in labels if y == 0)),
+                'fake': int(sum(1 for y in labels if y == 1)),
+            },
+        },
+        'metrics': {
+            'test': test_metrics,
+            'train_probe': train_metrics,
+            'gap': float(gap),
+            'cv_scores': [float(s) for s in cv_scores],
+            'cv_mean': float(cv_scores.mean()),
+            'cv_std_x2': float(cv_scores.std() * 2),
+        },
+        'incremental': {
+            'rows': int(incremental_count),
+            'applied': bool(incremental_applied),
+        },
+    }
+
+    with open(metrics_path, 'w', encoding='utf-8') as f:
+        json.dump(metrics_payload, f, indent=2)
+
+    print(f"Metrics saved to: {metrics_path}")
 
 
 if __name__ == '__main__':
