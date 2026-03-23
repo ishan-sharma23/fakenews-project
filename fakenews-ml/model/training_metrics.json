@@ -1,0 +1,43 @@
+{
+  "dataset": {
+    "path": "../data/WELFake_Dataset.csv",
+    "split_mode": "random",
+    "max_samples": 8000,
+    "min_text_chars": 60,
+    "deduplicate": true,
+    "train_size": 6000,
+    "test_size": 2000,
+    "label_distribution": {
+      "real": 4384,
+      "fake": 3616
+    }
+  },
+  "metrics": {
+    "test": {
+      "accuracy": NaN,
+      "f1_macro": NaN,
+      "auc_roc": NaN,
+      "mcc": NaN
+    },
+    "train_probe": {
+      "accuracy": NaN,
+      "f1_macro": NaN,
+      "auc_roc": NaN,
+      "mcc": NaN
+    },
+    "gap": NaN,
+    "cv_scores": [],
+    "cv_mean": NaN,
+    "cv_std_x2": NaN
+  },
+  "incremental": {
+    "rows": 0,
+    "applied": false
+  },
+  "snapshot": {
+    "directory": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260323_063807",
+    "model": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260323_063807\\voting_classifier_20260323_063807.pkl",
+    "vectorizer": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260323_063807\\tfidf_vectorizer_20260323_063807.pkl",
+    "metrics": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260323_063807\\training_metrics_20260323_063807.json"
+  }
+}

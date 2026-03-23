@@ -12,6 +12,7 @@ import os
 import re
 import string
 import importlib
+import sys
 import joblib
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -273,10 +274,40 @@ class FakeNewsPredictor:
     def _load_model(self):
         """Load trained model and vectorizer if they exist"""
         try:
-            if os.path.exists(self.model_path) and os.path.exists(self.vectorizer_path):
+            # Backward compatibility: older artifacts may reference classes under
+            # top-level module name "predictor" instead of "model.predictor".
+            sys.modules.setdefault('predictor', sys.modules[__name__])
+
+            base_dir = os.path.dirname(__file__)
+            configured_dir = os.path.dirname(self.model_path)
+            candidate_dirs = []
+            for d in [
+                configured_dir,
+                os.path.join(configured_dir, 'saved_model'),
+                os.path.join(base_dir, 'saved_model'),
+                base_dir,
+            ]:
+                if d and d not in candidate_dirs:
+                    candidate_dirs.append(d)
+
+            last_error = None
+            for candidate_dir in candidate_dirs:
+                model_candidate = os.path.join(candidate_dir, 'voting_classifier.pkl')
+                vectorizer_candidate = os.path.join(candidate_dir, 'tfidf_vectorizer.pkl')
+                if not (os.path.exists(model_candidate) and os.path.exists(vectorizer_candidate)):
+                    continue
+
                 try:
-                    model_blob = joblib.load(self.model_path)
-                    self.vectorizer = joblib.load(self.vectorizer_path)
+                    try:
+                        model_blob = joblib.load(model_candidate)
+                        self.vectorizer = joblib.load(vectorizer_candidate)
+                    except Exception:
+                        import pickle
+
+                        with open(model_candidate, 'rb') as f:
+                            model_blob = pickle.load(f)
+                        with open(vectorizer_candidate, 'rb') as f:
+                            self.vectorizer = pickle.load(f)
 
                     if isinstance(model_blob, dict) and 'model' in model_blob:
                         self.model = model_blob.get('model')
@@ -284,29 +315,23 @@ class FakeNewsPredictor:
                     else:
                         self.model = model_blob
                         self.tfidf_feature_count = getattr(model_blob, 'tfidf_feature_count', None)
-                except Exception:
-                    import pickle
 
-                    with open(self.model_path, 'rb') as f:
-                        model_blob = pickle.load(f)
-                    with open(self.vectorizer_path, 'rb') as f:
-                        self.vectorizer = pickle.load(f)
+                    if self.tfidf_feature_count is None and self.vectorizer is not None:
+                        self.tfidf_feature_count = len(self.vectorizer.get_feature_names_out())
 
-                    if isinstance(model_blob, dict) and 'model' in model_blob:
-                        self.model = model_blob.get('model')
-                        self.tfidf_feature_count = model_blob.get('tfidf_feature_count')
-                    else:
-                        self.model = model_blob
-                        self.tfidf_feature_count = getattr(model_blob, 'tfidf_feature_count', None)
+                    self.model_path = model_candidate
+                    self.vectorizer_path = vectorizer_candidate
+                    self.is_trained = True
+                    print(f"Model loaded successfully from {candidate_dir}")
+                    return
+                except Exception as load_error:
+                    last_error = load_error
 
-                if self.tfidf_feature_count is None and self.vectorizer is not None:
-                    self.tfidf_feature_count = len(self.vectorizer.get_feature_names_out())
-
-                self.is_trained = True
-                print("Model loaded successfully")
+            if last_error:
+                print(f"No usable trained model found. Last load error: {last_error}")
             else:
                 print("No trained model found. Using fallback prediction.")
-                self.is_trained = False
+            self.is_trained = False
         except Exception as e:
             print(f"Error loading model: {e}")
             self.is_trained = False
