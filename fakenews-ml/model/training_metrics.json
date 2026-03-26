@@ -2,42 +2,114 @@
   "dataset": {
     "path": "data/WELFake_Dataset.csv",
     "split_mode": "random",
-    "max_samples": 500,
+    "max_samples": 50000,
     "min_text_chars": 40,
     "deduplicate": true,
-    "train_size": 375,
-    "test_size": 125,
+    "train_size": 37500,
+    "test_size": 12500,
     "label_distribution": {
-      "real": 273,
-      "fake": 227
+      "real": 27364,
+      "fake": 22636
     }
   },
   "metrics": {
     "test": {
-      "accuracy": NaN,
-      "f1_macro": NaN,
-      "auc_roc": NaN,
-      "mcc": NaN
+      "accuracy": 0.92816,
+      "f1_macro": 0.9276784425705626,
+      "auc_roc": 0.9823315906641605,
+      "mcc": 0.8556725961560474,
+      "confusion_matrix": [
+        [
+          6311,
+          530
+        ],
+        [
+          368,
+          5291
+        ]
+      ],
+      "classification_report": {
+        "REAL": {
+          "precision": 0.9449019314268603,
+          "recall": 0.9225259464990498,
+          "f1-score": 0.9335798816568047,
+          "support": 6841.0
+        },
+        "FAKE": {
+          "precision": 0.9089503521731661,
+          "recall": 0.9349708429051069,
+          "f1-score": 0.9217770034843206,
+          "support": 5659.0
+        },
+        "accuracy": 0.92816,
+        "macro avg": {
+          "precision": 0.9269261418000132,
+          "recall": 0.9287483947020784,
+          "f1-score": 0.9276784425705626,
+          "support": 12500.0
+        },
+        "weighted avg": {
+          "precision": 0.9286259324671279,
+          "recall": 0.92816,
+          "f1-score": 0.9282364826505576,
+          "support": 12500.0
+        }
+      }
     },
     "train_probe": {
-      "accuracy": NaN,
-      "f1_macro": NaN,
-      "auc_roc": NaN,
-      "mcc": NaN
+      "accuracy": 0.955,
+      "f1_macro": 0.9538922615845693,
+      "auc_roc": 0.9930434782608697,
+      "mcc": 0.9078345380507737,
+      "confusion_matrix": [
+        [
+          111,
+          4
+        ],
+        [
+          5,
+          80
+        ]
+      ],
+      "classification_report": {
+        "REAL": {
+          "precision": 0.9568965517241379,
+          "recall": 0.9652173913043478,
+          "f1-score": 0.961038961038961,
+          "support": 115.0
+        },
+        "FAKE": {
+          "precision": 0.9523809523809523,
+          "recall": 0.9411764705882353,
+          "f1-score": 0.9467455621301775,
+          "support": 85.0
+        },
+        "accuracy": 0.955,
+        "macro avg": {
+          "precision": 0.9546387520525451,
+          "recall": 0.9531969309462915,
+          "f1-score": 0.9538922615845693,
+          "support": 200.0
+        },
+        "weighted avg": {
+          "precision": 0.9549774220032841,
+          "recall": 0.955,
+          "f1-score": 0.9549642665027281,
+          "support": 200.0
+        }
+      }
     },
-    "gap": NaN,
-    "cv_scores": [],
-    "cv_mean": NaN,
-    "cv_std_x2": NaN
+    "gap": 0.026839999999999975,
+    "cv_scores": [
+      0.92856,
+      0.92912,
+      0.93096
+    ],
+    "cv_mean": 0.9295466666666666,
+    "cv_std_x2": 0.002050387497252373
   },
   "incremental": {
     "rows": 0,
     "applied": false
-  },
-  "snapshot": {
-    "directory": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260326_170535",
-    "model": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260326_170535\\voting_classifier_20260326_170535.pkl",
-    "vectorizer": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260326_170535\\tfidf_vectorizer_20260326_170535.pkl",
-    "metrics": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260326_170535\\training_metrics_20260326_170535.json"
   }
 }
