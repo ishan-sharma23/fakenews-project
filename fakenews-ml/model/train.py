@@ -449,7 +449,7 @@ def main():
     parser.add_argument('--cv-folds', type=int, default=3, help='Number of cross-validation folds (default: 3)')
     parser.add_argument('--cv-jobs', type=int, default=1, help='Parallel jobs for CV (default: 1 for stability)')
     parser.add_argument('--skip-eval', action='store_true', help='Skip CV/test evaluation for faster training runs')
-    parser.add_argument('--profile', type=str, default='custom', choices=['quick', 'full', 'custom'], help='Training preset profile')
+    parser.add_argument('--profile', type=str, default='custom', choices=['quick', 'full', 'best', 'custom'], help='Training preset profile')
     parser.add_argument('--snapshot-dir', type=str, default='', help='Optional directory for timestamped artifact snapshots')
     parser.set_defaults(deduplicate=True)
     args = parser.parse_args()
@@ -468,6 +468,15 @@ def main():
         args.cv_jobs = 1
         args.skip_eval = False
         print("Using FULL profile (larger sample + evaluation).")
+    elif args.profile == 'best':
+        args.max_samples = 0
+        args.min_text_chars = 20
+        args.cv_folds = 5
+        args.cv_jobs = 1
+        args.test_size = 0.2
+        args.skip_eval = False
+        args.deduplicate = True
+        print("Using BEST profile (full dataset + stricter evaluation).")
 
     effective_max_samples = args.max_samples if args.max_samples and args.max_samples > 0 else None
     

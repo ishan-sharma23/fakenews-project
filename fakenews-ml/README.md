@@ -42,6 +42,15 @@ Full profile (larger sample + CV + evaluation metrics):
 python model/train.py --data data/WELFake_Dataset.csv --profile full
 ```
 
+Best profile (full dataset + 5-fold CV + full evaluation):
+```bash
+python model/train.py --data data/WELFake_Dataset.csv --profile best
+```
+
+Notes:
+- This is the highest-quality preset and can take significantly longer to run.
+- It uses the full cleaned dataset (no sample cap), 20% test split, and deduplication.
+
 Custom profile (manual tuning):
 ```bash
 python model/train.py --data data/WELFake_Dataset.csv \
