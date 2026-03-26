@@ -1,15 +1,15 @@
 {
   "dataset": {
-    "path": "../data/WELFake_Dataset.csv",
+    "path": "data/WELFake_Dataset.csv",
     "split_mode": "random",
-    "max_samples": 8000,
-    "min_text_chars": 60,
+    "max_samples": 500,
+    "min_text_chars": 40,
     "deduplicate": true,
-    "train_size": 6000,
-    "test_size": 2000,
+    "train_size": 375,
+    "test_size": 125,
     "label_distribution": {
-      "real": 4384,
-      "fake": 3616
+      "real": 273,
+      "fake": 227
     }
   },
   "metrics": {
@@ -35,9 +35,9 @@
     "applied": false
   },
   "snapshot": {
-    "directory": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260323_063807",
-    "model": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260323_063807\\voting_classifier_20260323_063807.pkl",
-    "vectorizer": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260323_063807\\tfidf_vectorizer_20260323_063807.pkl",
-    "metrics": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260323_063807\\training_metrics_20260323_063807.json"
+    "directory": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260326_170535",
+    "model": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260326_170535\\voting_classifier_20260326_170535.pkl",
+    "vectorizer": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260326_170535\\tfidf_vectorizer_20260326_170535.pkl",
+    "metrics": "C:\\Users\\shakh\\Desktop\\fakenews-project\\fakenews-ml\\model\\runs\\20260326_170535\\training_metrics_20260326_170535.json"
   }
 }

@@ -118,7 +118,8 @@ def _read_and_clean_dataset(file_path, max_samples=None, min_text_chars=20, dedu
 
     cleaned = []
     seen_keys = set()
-    for idx, t, l in zip(row_indices, texts, raw_labels):
+    total_rows = len(texts)
+    for i, (idx, t, l) in enumerate(zip(row_indices, texts, raw_labels), start=1):
         l_stripped = str(l).strip()
         if l_stripped in valid_label_map:
             # Strip Reuters wire prefix to reduce source-style leakage.
@@ -134,6 +135,9 @@ def _read_and_clean_dataset(file_path, max_samples=None, min_text_chars=20, dedu
 
             if len(normalized) >= min_text_chars:
                 cleaned.append((clean_text, valid_label_map[l_stripped], idx))
+
+        if i % 5000 == 0 or i == total_rows:
+            print(f"Cleaning progress: {i}/{total_rows} rows processed, kept={len(cleaned)}")
 
     if max_samples and len(cleaned) > max_samples:
         real_rows = [row for row in cleaned if row[1] == 0]

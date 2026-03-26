@@ -13,6 +13,9 @@ import re
 import string
 import importlib
 import sys
+import glob
+import json
+import math
 import joblib
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -290,13 +293,65 @@ class FakeNewsPredictor:
                 if d and d not in candidate_dirs:
                     candidate_dirs.append(d)
 
-            last_error = None
+            ranked_run_candidates = []
+            run_roots = [
+                os.path.join(configured_dir, 'runs'),
+                os.path.join(configured_dir, 'saved_model', 'runs'),
+                os.path.join(base_dir, 'runs'),
+                os.path.join(base_dir, 'saved_model', 'runs'),
+            ]
+            seen_paths = set()
+            for run_root in run_roots:
+                if not os.path.isdir(run_root):
+                    continue
+                for run_name in os.listdir(run_root):
+                    run_dir = os.path.join(run_root, run_name)
+                    if not os.path.isdir(run_dir):
+                        continue
+
+                    metric_files = glob.glob(os.path.join(run_dir, 'training_metrics*.json'))
+                    model_files = glob.glob(os.path.join(run_dir, 'voting_classifier*.pkl'))
+                    vectorizer_files = glob.glob(os.path.join(run_dir, 'tfidf_vectorizer*.pkl'))
+                    if not model_files or not vectorizer_files:
+                        continue
+
+                    model_candidate = max(model_files, key=os.path.getmtime)
+                    vectorizer_candidate = max(vectorizer_files, key=os.path.getmtime)
+                    key = (model_candidate, vectorizer_candidate)
+                    if key in seen_paths:
+                        continue
+                    seen_paths.add(key)
+
+                    score = -1.0
+                    if metric_files:
+                        try:
+                            with open(metric_files[0], 'r', encoding='utf-8') as f:
+                                payload = json.load(f)
+                            score_value = payload.get('metrics', {}).get('test', {}).get('accuracy', -1)
+                            score = float(score_value)
+                            if math.isnan(score):
+                                score = -1.0
+                        except Exception:
+                            score = -1.0
+
+                    ranked_run_candidates.append(
+                        (score, os.path.getmtime(model_candidate), model_candidate, vectorizer_candidate, run_dir)
+                    )
+
+            ranked_run_candidates.sort(key=lambda x: (x[0], x[1]), reverse=True)
+
+            candidate_pairs = []
+            for _, _, model_candidate, vectorizer_candidate, run_dir in ranked_run_candidates:
+                candidate_pairs.append((model_candidate, vectorizer_candidate, run_dir))
+
             for candidate_dir in candidate_dirs:
                 model_candidate = os.path.join(candidate_dir, 'voting_classifier.pkl')
                 vectorizer_candidate = os.path.join(candidate_dir, 'tfidf_vectorizer.pkl')
-                if not (os.path.exists(model_candidate) and os.path.exists(vectorizer_candidate)):
-                    continue
+                if os.path.exists(model_candidate) and os.path.exists(vectorizer_candidate):
+                    candidate_pairs.append((model_candidate, vectorizer_candidate, candidate_dir))
 
+            last_error = None
+            for model_candidate, vectorizer_candidate, candidate_label in candidate_pairs:
                 try:
                     try:
                         model_blob = joblib.load(model_candidate)
@@ -322,7 +377,7 @@ class FakeNewsPredictor:
                     self.model_path = model_candidate
                     self.vectorizer_path = vectorizer_candidate
                     self.is_trained = True
-                    print(f"Model loaded successfully from {candidate_dir}")
+                    print(f"Model loaded successfully from {candidate_label}")
                     return
                 except Exception as load_error:
                     last_error = load_error

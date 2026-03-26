@@ -1,0 +1,37 @@
+{
+  "dataset": {
+    "path": "data/WELFake_Dataset.csv",
+    "split_mode": "random",
+    "max_samples": 500,
+    "min_text_chars": 40,
+    "deduplicate": true,
+    "train_size": 375,
+    "test_size": 125,
+    "label_distribution": {
+      "real": 273,
+      "fake": 227
+    }
+  },
+  "metrics": {
+    "test": {
+      "accuracy": NaN,
+      "f1_macro": NaN,
+      "auc_roc": NaN,
+      "mcc": NaN
+    },
+    "train_probe": {
+      "accuracy": NaN,
+      "f1_macro": NaN,
+      "auc_roc": NaN,
+      "mcc": NaN
+    },
+    "gap": NaN,
+    "cv_scores": [],
+    "cv_mean": NaN,
+    "cv_std_x2": NaN
+  },
+  "incremental": {
+    "rows": 0,
+    "applied": false
+  }
+}
