@@ -51,10 +51,10 @@ python model/train.py --data data/WELFake_Dataset.csv \
 ### 2.2 Training Outputs
 
 Each run saves:
-- Latest model: `model/saved_model/voting_classifier.pkl`
-- Latest vectorizer: `model/saved_model/tfidf_vectorizer.pkl`
-- Latest metrics: `model/saved_model/training_metrics.json`
-- Versioned snapshot folder: `model/saved_model/runs/<UTC_TIMESTAMP>/`
+- Latest model: `<MODEL_PATH>/voting_classifier.pkl` (default local path: `model/voting_classifier.pkl`)
+- Latest vectorizer: `<MODEL_PATH>/tfidf_vectorizer.pkl`
+- Latest metrics: `<MODEL_PATH>/training_metrics.json`
+- Versioned snapshot folder: `<MODEL_PATH>/runs/<UTC_TIMESTAMP>/`
 
 Evaluation output includes:
 - Accuracy / F1 / AUC-ROC / MCC

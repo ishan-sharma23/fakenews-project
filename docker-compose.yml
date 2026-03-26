@@ -27,7 +27,7 @@ services:
       - "5001:5001"
     environment:
       - FLASK_ENV=production
-      - MODEL_PATH=/app/model/saved_model
+      - MODEL_PATH=/app/model/runtime_models
       - NEWSAPI_KEY=${NEWSAPI_KEY:-}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/"]
@@ -36,7 +36,7 @@ services:
       retries: 5
       start_period: 60s
     volumes:
-      - ml_models:/app/model/saved_model
+      - ml_models:/app/model/runtime_models
     networks:
       - fakenews-network
 

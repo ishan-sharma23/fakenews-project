@@ -14,8 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Create model save dir (fixes Docker volume path mismatch)
-RUN mkdir -p /app/model/saved_model
+# Create runtime model save dir; keep /app/model/saved_model untouched for bundled artifacts.
+RUN mkdir -p /app/model/runtime_models
 
 # Do not train during image build.
 # The full WELFake dataset can exceed memory limits in Docker build environments.
@@ -24,7 +24,7 @@ RUN mkdir -p /app/model/saved_model
 EXPOSE 5001
 ENV FLASK_ENV=production
 ENV PORT=5001
-ENV MODEL_PATH=/app/model/saved_model
+ENV MODEL_PATH=/app/model/runtime_models
 
 CMD ["gunicorn","--bind","0.0.0.0:5001","--workers","2",\
      "--timeout","120","--log-level","info","app:app"]
