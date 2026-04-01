@@ -58,6 +58,35 @@ const toNumberOr = (value, fallback = 0) => {
   return Number.isFinite(num) ? num : fallback;
 };
 
+const extractModelProbabilities = (analysisResult) => {
+  const fakeProb = toNumberOr(analysisResult?.details?.probabilities?.fake, -1);
+  const realProb = toNumberOr(analysisResult?.details?.probabilities?.real, -1);
+
+  if (fakeProb >= 0 && realProb >= 0) {
+    return {
+      fakeProb: Math.max(0, Math.min(1, fakeProb)),
+      realProb: Math.max(0, Math.min(1, realProb))
+    };
+  }
+
+  // Fallback when per-class probabilities are unavailable.
+  const modelPrediction = normalizeModelPrediction(analysisResult);
+  const confidencePct = Math.max(0, Math.min(100, toNumberOr(analysisResult?.confidence, 0)));
+  const topProb = confidencePct / 100;
+
+  if (modelPrediction === 'FAKE') {
+    return {
+      fakeProb: topProb,
+      realProb: 1 - topProb
+    };
+  }
+
+  return {
+    fakeProb: 1 - topProb,
+    realProb: topProb
+  };
+};
+
 const extractSignalDetails = (analysisResult) => {
   const details = analysisResult?.details || {};
   const featureBreakdown = details.featureBreakdown || {};
@@ -112,6 +141,7 @@ const buildReasonWithSignals = (baseReason, signalDetails) => {
 const deriveBinaryVerdict = (analysisResult, sourceCredibility, textLength) => {
   const signalDetails = extractSignalDetails(analysisResult);
   const modelPrediction = normalizeModelPrediction(analysisResult);
+  const { fakeProb, realProb } = extractModelProbabilities(analysisResult);
   const confidence = toNumberOr(analysisResult?.confidence, 0);
 
   // Use sentiment and linguistic signals as additional confidence calibration.
@@ -121,19 +151,22 @@ const deriveBinaryVerdict = (analysisResult, sourceCredibility, textLength) => {
   const adjustedConfidence = confidence + sentimentMagnitude + linguisticBias + subjectivityBias;
 
   if (textLength < 80) {
+    const verdict = sourceCredibility < 50 ? 'FAKE' : 'REAL';
     return {
-      verdict: sourceCredibility < 50 ? 'FAKE' : 'REAL',
+      verdict,
       modelPrediction,
+      confidence: verdict === 'FAKE' ? Math.round(fakeProb * 10000) / 100 : Math.round(realProb * 10000) / 100,
       reason: buildReasonWithSignals('Limited content; fallback based on source credibility', signalDetails)
     };
   }
 
   if (modelPrediction === 'FAKE') {
-    // Mark as FAKE only for strong evidence, especially when source is not trusted.
-    if (adjustedConfidence >= 88 || (adjustedConfidence >= 75 && sourceCredibility < 60) || sourceCredibility < 35) {
+    // Respect strong FAKE model signals before applying conservative source calibration.
+    if (fakeProb >= 0.6 || adjustedConfidence >= 88 || (adjustedConfidence >= 75 && sourceCredibility < 60) || sourceCredibility < 35) {
       return {
         verdict: 'FAKE',
         modelPrediction,
+        confidence: Math.round(fakeProb * 10000) / 100,
         reason: buildReasonWithSignals('Strong fake-content signals', signalDetails)
       };
     }
@@ -141,14 +174,16 @@ const deriveBinaryVerdict = (analysisResult, sourceCredibility, textLength) => {
     return {
       verdict: 'REAL',
       modelPrediction,
+      confidence: Math.round(realProb * 10000) / 100,
       reason: buildReasonWithSignals('Insufficient fake evidence after source/context calibration', signalDetails)
     };
   }
 
-  if (adjustedConfidence >= 55 || sourceCredibility >= 60) {
+  if (realProb >= 0.6 || adjustedConfidence >= 55 || sourceCredibility >= 60) {
     return {
       verdict: 'REAL',
       modelPrediction,
+      confidence: Math.round(realProb * 10000) / 100,
       reason: buildReasonWithSignals('Content signal indicates real news', signalDetails)
     };
   }
@@ -156,6 +191,7 @@ const deriveBinaryVerdict = (analysisResult, sourceCredibility, textLength) => {
   return {
     verdict: 'FAKE',
     modelPrediction,
+    confidence: Math.round(fakeProb * 10000) / 100,
     reason: buildReasonWithSignals('Low-confidence real-content signal with weak source trust', signalDetails)
   };
 };

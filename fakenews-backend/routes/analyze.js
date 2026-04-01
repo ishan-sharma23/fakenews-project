@@ -243,6 +243,9 @@ router.post('/', [
       sourceCredibility,
       contentToAnalyze.length
     );
+    const finalConfidence = Number.isFinite(Number(verdictInfo.confidence))
+      ? Number(verdictInfo.confidence)
+      : analysisResult.confidence;
 
     const finalDetails = {
       ...analysisResult.details,
@@ -255,7 +258,7 @@ router.post('/', [
       content: contentToAnalyze.substring(0, 1000), // Store first 1000 chars
       contentType,
       prediction: verdictInfo.verdict,
-      confidence: analysisResult.confidence,
+      confidence: finalConfidence,
       details: finalDetails
     });
 
