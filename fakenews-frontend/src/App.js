@@ -54,7 +54,7 @@ function App() {
 
             {/* Footer */}
             <footer className="footer">
-              <p>© 2024 Fake News Detector | Built for a safer digital space</p>
+              <p>© 2026 Fake News Detector | Built for a safer digital space</p>
             </footer>
           </div>
         </Router>
