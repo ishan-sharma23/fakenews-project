@@ -1,0 +1,93 @@
+{
+  "fake_test": {
+    "prediction": "FAKE",
+    "confidence": 78.09,
+    "details": {
+      "sentimentScore": 0.0,
+      "objectivityScore": 50,
+      "clickbaitScore": 78,
+      "sourceCredibility": 22,
+      "linguisticFlags": [
+        "No source citations found",
+        "Clickbait language detected"
+      ],
+      "featureBreakdown": {
+        "sentiment": 0.0,
+        "subjectivity": 0.5,
+        "caps_ratio": 0.1319,
+        "exclamation_ratio": 0.022
+      },
+      "flags": [
+        "No source citations found",
+        "Clickbait language detected"
+      ],
+      "votes": {
+        "rf": "FAKE",
+        "lr": "FAKE",
+        "nb": "FAKE"
+      },
+      "probabilities": {
+        "fake": 0.7809,
+        "real": 0.2191
+      }
+    }
+  },
+  "real_test1": {
+    "prediction": "FAKE",
+    "confidence": 64.61,
+    "details": {
+      "sentimentScore": 0.0,
+      "objectivityScore": 50,
+      "clickbaitScore": 65,
+      "sourceCredibility": 35,
+      "linguisticFlags": [],
+      "featureBreakdown": {
+        "sentiment": 0.0,
+        "subjectivity": 0.5,
+        "caps_ratio": 0.0357,
+        "exclamation_ratio": 0.0
+      },
+      "flags": [],
+      "votes": {
+        "rf": "FAKE",
+        "lr": "FAKE",
+        "nb": "REAL"
+      },
+      "probabilities": {
+        "fake": 0.6461,
+        "real": 0.3539
+      }
+    }
+  },
+  "real_test2": {
+    "prediction": "FAKE",
+    "confidence": 58.38,
+    "details": {
+      "sentimentScore": 0.0,
+      "objectivityScore": 50,
+      "clickbaitScore": 58,
+      "sourceCredibility": 42,
+      "linguisticFlags": [
+        "No source citations found"
+      ],
+      "featureBreakdown": {
+        "sentiment": 0.0,
+        "subjectivity": 0.5,
+        "caps_ratio": 0.0377,
+        "exclamation_ratio": 0.0
+      },
+      "flags": [
+        "No source citations found"
+      ],
+      "votes": {
+        "rf": "FAKE",
+        "lr": "FAKE",
+        "nb": "REAL"
+      },
+      "probabilities": {
+        "fake": 0.5838,
+        "real": 0.4162
+      }
+    }
+  }
+}

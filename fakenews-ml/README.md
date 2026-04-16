@@ -70,6 +70,20 @@ Evaluation output includes:
 - Confusion matrix
 - Per-class classification report (REAL and FAKE)
 
+### 2.3 Evaluate Current Model on WELFake
+
+Run evaluation with the already saved model artifacts:
+
+```bash
+python model/evaluate_welfake.py --data data/WELFake_Dataset.csv
+```
+
+Optional sampled run and JSON report:
+
+```bash
+python model/evaluate_welfake.py --data data/WELFake_Dataset.csv --limit 5000 --output model/welfake_eval.json
+```
+
 ### 3. Run the Service
 ```bash
 # Development

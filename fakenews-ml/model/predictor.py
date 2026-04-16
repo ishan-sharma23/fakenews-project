@@ -16,6 +16,7 @@ import sys
 import glob
 import json
 import math
+import warnings
 import joblib
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -24,38 +25,40 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 
-# Try to import NLTK, but don't fail if not available
+FALLBACK_STOP_WORDS = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+                       'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+                       'would', 'could', 'should', 'may', 'might', 'must', 'shall',
+                       'can', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by',
+                       'from', 'as', 'into', 'through', 'during', 'before', 'after',
+                       'above', 'below', 'between', 'under', 'again', 'further',
+                       'then', 'once', 'here', 'there', 'when', 'where', 'why',
+                       'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some',
+                       'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
+                       'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or',
+                       'because', 'until', 'while', 'about', 'against', 'this',
+                       'that', 'these', 'those', 'i', 'me', 'my', 'myself', 'we',
+                       'our', 'ours', 'ourselves', 'you', 'your', 'yours', 'he',
+                       'him', 'his', 'she', 'her', 'hers', 'it', 'its', 'they',
+                       'them', 'their', 'what', 'which', 'who', 'whom'}
+
+# Try to import NLTK, but remain fully offline-safe.
 try:
     import nltk
     from nltk.corpus import stopwords
     from nltk.stem import PorterStemmer
-    
-    # Download required NLTK data
+
     try:
         nltk.data.find('corpora/stopwords')
+        STOP_WORDS = set(stopwords.words('english'))
+        NLTK_AVAILABLE = True
     except LookupError:
-        nltk.download('stopwords', quiet=True)
-    
-    NLTK_AVAILABLE = True
-    STOP_WORDS = set(stopwords.words('english'))
-    STEMMER = PorterStemmer()
-except:
+        STOP_WORDS = FALLBACK_STOP_WORDS
+        NLTK_AVAILABLE = False
+
+    STEMMER = PorterStemmer() if NLTK_AVAILABLE else None
+except Exception:
     NLTK_AVAILABLE = False
-    STOP_WORDS = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 
-                  'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
-                  'would', 'could', 'should', 'may', 'might', 'must', 'shall',
-                  'can', 'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by',
-                  'from', 'as', 'into', 'through', 'during', 'before', 'after',
-                  'above', 'below', 'between', 'under', 'again', 'further',
-                  'then', 'once', 'here', 'there', 'when', 'where', 'why',
-                  'how', 'all', 'each', 'few', 'more', 'most', 'other', 'some',
-                  'such', 'no', 'nor', 'not', 'only', 'own', 'same', 'so',
-                  'than', 'too', 'very', 'just', 'and', 'but', 'if', 'or',
-                  'because', 'until', 'while', 'about', 'against', 'this',
-                  'that', 'these', 'those', 'i', 'me', 'my', 'myself', 'we',
-                  'our', 'ours', 'ourselves', 'you', 'your', 'yours', 'he',
-                  'him', 'his', 'she', 'her', 'hers', 'it', 'its', 'they',
-                  'them', 'their', 'what', 'which', 'who', 'whom'}
+    STOP_WORDS = FALLBACK_STOP_WORDS
     STEMMER = None
 
 # Optional dependencies with graceful fallback
@@ -145,6 +148,30 @@ class FakeNewsPredictor:
         
         # Try to load existing model
         self._load_model()
+
+    def _apply_inference_safety_overrides(self):
+        """
+        Apply conservative runtime overrides for loaded estimators.
+        This keeps prediction responsive in constrained environments.
+        """
+        if self.model is None:
+            return
+
+        try:
+            estimators = []
+            if hasattr(self.model, 'named_estimators_') and self.model.named_estimators_:
+                estimators = list(self.model.named_estimators_.values())
+            elif hasattr(self.model, 'estimators_'):
+                estimators = list(self.model.estimators_)
+            else:
+                estimators = [self.model]
+
+            for estimator in estimators:
+                if hasattr(estimator, 'n_jobs'):
+                    estimator.n_jobs = 1
+        except Exception:
+            # Never fail model loading because of optional runtime overrides.
+            pass
     
     def _preprocess_text(self, text):
         """
@@ -174,8 +201,10 @@ class FakeNewsPredictor:
         # Remove extended unicode symbols (e.g., many emoji/codepoints outside BMP)
         text = re.sub(r'[\U00010000-\U0010ffff]', '', text, flags=re.UNICODE)
 
-        if SPACY_AVAILABLE and nlp is not None:
-            doc = nlp(text[:100000])
+        # SpaCy lemmatization is optional and can significantly slow down inference.
+        use_spacy_lemma = os.environ.get('ENABLE_SPACY_LEMMA', '0') == '1'
+        if use_spacy_lemma and SPACY_AVAILABLE and nlp is not None:
+            doc = nlp(text[:20000])
             text = ' '.join([t.lemma_ for t in doc if not t.is_space])
 
         text = ' '.join(text.split())
@@ -376,6 +405,7 @@ class FakeNewsPredictor:
 
                     self.model_path = model_candidate
                     self.vectorizer_path = vectorizer_candidate
+                    self._apply_inference_safety_overrides()
                     self.is_trained = True
                     print(f"Model loaded successfully from {candidate_label}")
                     return
@@ -458,13 +488,47 @@ class FakeNewsPredictor:
         
         # Get prediction and probabilities
         prediction = self.model.predict(X)[0]
-        probabilities = self.model.predict_proba(X)[0]
+        try:
+            probabilities = self.model.predict_proba(X)[0]
+        except Exception as prob_error:
+            warnings.warn(f"predict_proba failed, falling back to vote-average probabilities: {prob_error}")
+            fake_probs = []
+            real_probs = []
+
+            if hasattr(self.model, 'named_estimators_') and self.model.named_estimators_:
+                estimators = self.model.named_estimators_.items()
+            elif hasattr(self.model, 'estimators_'):
+                estimators = [(f'est_{i}', est) for i, est in enumerate(self.model.estimators_)]
+            else:
+                estimators = [('model', self.model)]
+
+            for name, clf in estimators:
+                try:
+                    clf_pred = clf.predict(X)[0]
+
+                    if hasattr(clf, 'predict_proba'):
+                        clf_proba = clf.predict_proba(X)[0]
+                        real_probs.append(float(clf_proba[0]))
+                        fake_probs.append(float(clf_proba[1]))
+                    else:
+                        real_probs.append(1.0 if clf_pred == 0 else 0.0)
+                        fake_probs.append(1.0 if clf_pred == 1 else 0.0)
+                except Exception:
+                    continue
+
+            if fake_probs and real_probs:
+                probabilities = np.array([float(np.mean(real_probs)), float(np.mean(fake_probs))])
+            else:
+                # Last resort if no estimator probabilities can be collected.
+                probabilities = np.array([0.5, 0.5])
+            prediction = 1 if probabilities[1] >= probabilities[0] else 0
         
         # Get individual classifier predictions
         votes = {}
-        for name, clf in self.model.named_estimators_.items():
-            clf_pred = clf.predict(X)[0]
-            votes[name] = 'FAKE' if clf_pred == 1 else 'REAL'
+        if hasattr(self.model, 'named_estimators_') and self.model.named_estimators_:
+            for name, clf in self.model.named_estimators_.items():
+                clf_pred = clf.predict(X)[0]
+                votes[name] = 'FAKE' if clf_pred == 1 else 'REAL'
         
         # Format result
         pred_label = 'FAKE' if prediction == 1 else 'REAL'
