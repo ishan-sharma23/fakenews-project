@@ -230,7 +230,8 @@ class FakeNewsPredictor:
         caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
         mean_word_len = float(sum(len(w) for w in words) / total_words) if words else 0.0
         unique_ratio = float(len(set(words)) / total_words) if words else 0.0
-        ner_density = float(len(nlp(text[:500]).ents) / 10.0) if SPACY_AVAILABLE and nlp is not None else 0.0
+        use_spacy_ner = os.environ.get('ENABLE_SPACY_NER_FEATURES', '0') == '1'
+        ner_density = float(len(nlp(text[:500]).ents) / 10.0) if use_spacy_ner and SPACY_AVAILABLE and nlp is not None else 0.0
         readability = float(textstat.flesch_reading_ease(text) / 100.0) if TEXTSTAT_AVAILABLE else 0.5
 
         return np.array([[sentiment, subjectivity, punct_ratio, caps_ratio, mean_word_len, unique_ratio, ner_density, readability]])

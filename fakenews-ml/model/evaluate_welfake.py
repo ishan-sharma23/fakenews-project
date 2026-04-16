@@ -13,10 +13,18 @@ import argparse
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 
 from predictor import FakeNewsPredictor
+
+try:
+    from scipy.sparse import hstack, csr_matrix
+
+    SCIPY_AVAILABLE = True
+except Exception:
+    SCIPY_AVAILABLE = False
 
 
 def load_welfake_samples(csv_path, min_text_chars=40, limit=0):
@@ -58,10 +66,16 @@ def evaluate(texts, labels):
     if not predictor.is_trained:
         raise RuntimeError("No trained model found. Train first with model/train.py.")
 
-    preds = []
-    for text in texts:
-        result = predictor.predict(text)
-        preds.append(1 if result.get("prediction") == "FAKE" else 0)
+    processed = [predictor._preprocess_text(text) for text in texts]
+    x_tfidf = predictor.vectorizer.transform(processed)
+
+    if SCIPY_AVAILABLE:
+        ling = np.vstack([predictor._extract_linguistic_features(t) for t in processed])
+        x_eval = hstack([x_tfidf, csr_matrix(ling)])
+    else:
+        x_eval = x_tfidf
+
+    preds = predictor.model.predict(x_eval).tolist()
 
     acc = accuracy_score(labels, preds)
     f1_macro = f1_score(labels, preds, average="macro")
