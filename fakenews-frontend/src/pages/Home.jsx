@@ -23,8 +23,44 @@ const Home = () => {
   
   // Trial tracking for guests (persisted in localStorage)
   const FREE_TRIALS = 5;
-  const getTrialCount = () => parseInt(localStorage.getItem('trialCount') || '0');
-  const [trialCount, setTrialCount] = useState(getTrialCount());
+  const TRIAL_STORAGE_KEY = 'guestTrialState';
+  const LEGACY_TRIAL_STORAGE_KEY = 'trialCount';
+  const TRIAL_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+  const writeTrialState = (count) => {
+    const safeCount = Math.max(0, Math.min(FREE_TRIALS, Number(count) || 0));
+    localStorage.setItem(
+      TRIAL_STORAGE_KEY,
+      JSON.stringify({ count: safeCount, updatedAt: Date.now() })
+    );
+  };
+
+  const getTrialCount = () => {
+    const now = Date.now();
+
+    try {
+      const stored = localStorage.getItem(TRIAL_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const storedCount = Number(parsed?.count);
+        const updatedAt = Number(parsed?.updatedAt);
+        const isRecent = Number.isFinite(updatedAt) && now - updatedAt < TRIAL_WINDOW_MS;
+
+        if (Number.isFinite(storedCount) && isRecent) {
+          return Math.max(0, Math.min(FREE_TRIALS, Math.floor(storedCount)));
+        }
+      }
+    } catch {
+      // Corrupt localStorage should not block users from free trials.
+    }
+
+    // Migrate legacy key to expiring model by resetting stale permanent counters.
+    localStorage.removeItem(LEGACY_TRIAL_STORAGE_KEY);
+    writeTrialState(0);
+    return 0;
+  };
+
+  const [trialCount, setTrialCount] = useState(() => getTrialCount());
   
   // Character limits
   const GUEST_CHAR_LIMIT = 500;
@@ -55,9 +91,9 @@ const Home = () => {
       
       // Increment trial count for guests
       if (!isAuthenticated) {
-        const newCount = trialCount + 1;
+        const newCount = Math.min(FREE_TRIALS, trialCount + 1);
         setTrialCount(newCount);
-        localStorage.setItem('trialCount', newCount.toString());
+        writeTrialState(newCount);
       }
     } catch (err) {
       console.error('Analysis error:', err);
