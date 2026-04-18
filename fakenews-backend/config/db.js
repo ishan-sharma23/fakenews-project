@@ -4,7 +4,7 @@ const connectDB = async () => {
   const isDockerRuntime = process.env.NODE_ENV === 'production';
   const fallbackUri = isDockerRuntime
     ? 'mongodb://mongodb:27017/capstoneproject'
-    : 'mongodb://localhost:27018/capstoneproject';
+    : 'mongodb://localhost:27017/capstoneproject';
 
   const mongoUri = process.env.MONGO_URI || fallbackUri;
 
@@ -18,7 +18,8 @@ const connectDB = async () => {
     console.error(`Error: ${error.message}`);
     console.error('MongoDB connection hint:');
     console.error('- Docker backend: mongodb://mongodb:27017/capstoneproject');
-    console.error('- Local backend:  mongodb://localhost:27018/capstoneproject');
+    console.error('- Local backend:  mongodb://localhost:27017/capstoneproject');
+    console.error('- Local backend + Docker Mongo: mongodb://localhost:27018/capstoneproject');
     process.exit(1);
   }
 };

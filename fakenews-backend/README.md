@@ -34,7 +34,8 @@ When backend runs in Docker Compose, it must use Docker DNS host `mongodb`.
 When backend runs directly on your machine (not in Docker), it must use `localhost`.
 
 - Docker backend URI: `mongodb://mongodb:27017/capstoneproject`
-- Local backend URI: `mongodb://localhost:27018/capstoneproject`
+- Local backend URI: `mongodb://localhost:27017/capstoneproject`
+- Local backend + Docker Mongo host mapping: `mongodb://localhost:27018/capstoneproject`
 
 In this project:
 - `docker-compose.yml` sets backend `MONGO_URI` to Docker URI by default.
