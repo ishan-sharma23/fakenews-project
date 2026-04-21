@@ -10,9 +10,9 @@ import React from 'react';
 const teamMembers = [
   {
     id: 1,
-    name: 'Team Member 1',
+    name: 'Mishthi Arora',
     role: 'Project Lead',
-    image: 'https://ui-avatars.com/api/?name=Team+Member+1&background=2563eb&color=fff&size=150',
+    image: '/member%20images/member1.png',
     bio: 'Passionate about fighting misinformation using technology.',
     linkedin: '#',
     github: '#',
@@ -20,9 +20,9 @@ const teamMembers = [
   },
   {
     id: 2,
-    name: 'Team Member 2',
+    name: 'Lovish Arora',
     role: 'ML Engineer',
-    image: 'https://ui-avatars.com/api/?name=Team+Member+2&background=16a34a&color=fff&size=150',
+    image: '/member%20images/member2.png',
     bio: 'Specializes in NLP and machine learning models.',
     linkedin: '#',
     github: '#',
@@ -30,9 +30,9 @@ const teamMembers = [
   },
   {
     id: 3,
-    name: 'Team Member 3',
+    name: 'Ujjwal Shrivastava',
     role: 'Frontend Developer',
-    image: 'https://ui-avatars.com/api/?name=Team+Member+3&background=dc2626&color=fff&size=150',
+    image: '/member%20images/member3.png',
     bio: 'Creates intuitive and responsive user interfaces.',
     linkedin: '#',
     github: '#',
@@ -40,13 +40,13 @@ const teamMembers = [
   },
   {
     id: 4,
-    name: 'Team Member 4',
+    name: 'Ishan Sharma',
     role: 'Backend Developer',
-    image: 'https://ui-avatars.com/api/?name=Team+Member+4&background=9333ea&color=fff&size=150',
+    image: '/member%20images/member4.png',
     bio: 'Builds robust APIs and manages data infrastructure.',
-    linkedin: '#',
-    github: '#',
-    email: 'member4@example.com'
+    linkedin: 'https://www.linkedin.com/in/ishan-sharma-279b59253/',
+    github: 'https://github.com/ishan-sharma23',
+    email: 'ishan.sharma23@st.niituniversity.in'
   }
 ];
 
