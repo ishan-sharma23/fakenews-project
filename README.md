@@ -4,7 +4,7 @@ A full-stack, containerized application that uses machine learning to detect fak
 
 ---
 
-## Table of Content
+## Table of Contents:
 
 - [Overview](#overview)
 - [Architecture](#architecture)
