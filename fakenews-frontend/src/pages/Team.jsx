@@ -24,9 +24,9 @@ const teamMembers = [
     role: 'ML Engineer',
     image: '/member%20images/member2.png',
     bio: 'Specializes in NLP and machine learning models.',
-    linkedin: '#',
-    github: '#',
-    email: 'member2@example.com'
+    linkedin: 'https://www.linkedin.com/in/lovish-arora-932a31288?utm_source=share_via&utm_content=profile&utm_medium=member_ios',
+    github: 'https://github.com/lovisharora23',
+    email: 'lovish.arora23@st.niituniversity.in'
   },
   {
     id: 3,
