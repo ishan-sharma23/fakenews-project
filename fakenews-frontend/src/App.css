@@ -788,10 +788,367 @@ body {
   box-shadow: var(--shadow-lg);
 }
 
+/* ----- Team Page (base styles) ----- */
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.team-grid-single {
+  display: flex;
+  justify-content: center;
+}
+
+.team-card {
+  background: var(--white);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 24px;
+}
+
+.team-card-image img {
+  width: 160px;
+  height: auto;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.member-name {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.member-role {
+  color: var(--gray-600);
+  display: block;
+  margin-bottom: 8px;
+}
+
+.skills-container .skill-badge {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border-radius: 12px;
+  padding: 6px 10px;
+  font-weight: 600;
+}
+
+
 .login-header {
   text-align: center;
   margin-bottom: 32px;
 }
+
+/* =============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================= */
+
+@media (max-width: 1024px) {
+  .container {
+    padding: 0 16px;
+    max-width: 940px;
+  }
+
+  .navbar-container {
+    height: 56px;
+    padding: 0 8px;
+  }
+
+  .hero h1 {
+    font-size: 2.25rem;
+  }
+
+  .main {
+    padding: 32px 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar-container {
+    flex-wrap: wrap;
+    gap: 8px;
+    height: auto;
+    padding: 12px 0;
+    align-items: center;
+  }
+
+  .navbar-links {
+    order: 2;
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .nav-link {
+    padding: 6px 12px;
+    font-size: 0.95rem;
+  }
+
+  .login-btn,
+  .user-menu {
+    order: 3;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+  }
+
+  .hero h1 {
+    font-size: 2rem;
+  }
+
+  .main-content {
+    max-width: 100%;
+    padding: 0 8px;
+  }
+
+  .news-checker {
+    padding: 20px;
+  }
+
+  .news-textarea {
+    min-height: 140px;
+  }
+
+  .checker-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .checker-actions .btn {
+    width: 100%;
+  }
+
+  .result-display {
+    padding: 24px;
+  }
+
+  .result-badge {
+    padding: 10px 20px;
+    font-size: 1.25rem;
+  }
+
+  .history-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .history-list {
+    max-width: 100%;
+    padding: 0 8px;
+  }
+
+  .login-page {
+    padding: 24px 10px;
+  }
+
+  .login-card {
+    padding: 24px;
+  }
+
+  /* Team page responsive grid */
+  .team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  .team-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .team-card-image img {
+    max-width: 120px;
+    border-radius: 8px;
+  }
+
+  .team-card-content {
+    text-align: left;
+  }
+
+  .skills-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .skill-badge {
+    padding: 6px 8px;
+    font-size: 0.8rem;
+  }
+}
+
+/* Mobile menu styles */
+.mobile-toggle {
+  display: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  align-self: center;
+}
+
+.hamburger,
+.hamburger::before,
+.hamburger::after {
+  display: block;
+  width: 22px;
+  height: 2px;
+  background: rgba(255,255,255,0.95);
+  border-radius: 2px;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+  position: relative;
+}
+
+.hamburger::before,
+.hamburger::after {
+  content: '';
+  position: absolute;
+  left: 0;
+}
+
+.hamburger::before { top: -7px; }
+.hamburger::after { top: 7px; }
+
+.hamburger.open {
+  background: transparent;
+}
+.hamburger.open::before {
+  transform: translateY(7px) rotate(45deg);
+}
+.hamburger.open::after {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.mobile-menu {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-toggle { display: block; }
+
+  .navbar-container { position: relative; }
+
+  .mobile-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    top: calc(100% + 8px);
+    background: linear-gradient(180deg, rgba(59,130,246,0.95), rgba(37,99,235,0.95));
+    padding: 12px;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(15,23,42,0.2);
+    z-index: 120;
+    transform-origin: top center;
+    opacity: 0;
+    transform: scaleY(0.95);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .mobile-menu.open {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+
+  .mobile-menu .mobile-link {
+    color: #fff;
+    text-decoration: none;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-weight: 600;
+    background: transparent;
+  }
+
+  .mobile-menu .mobile-link:hover {
+    background: rgba(255,255,255,0.08);
+  }
+
+  /* Visible active / pressed states for mobile links */
+  .mobile-menu .mobile-link.active {
+    background: rgba(255,255,255,0.16);
+    box-shadow: 0 4px 12px rgba(2,6,23,0.12);
+    color: #fff;
+  }
+
+  .mobile-menu .mobile-link:active {
+    transform: translateY(1px);
+    opacity: 0.95;
+  }
+
+  /* Ensure buttons styled like links (logout) show same feedback */
+  .mobile-menu .mobile-logout {
+    display: inline-block;
+    text-align: center;
+  }
+
+  .mobile-logout {
+    background: #fff;
+    color: var(--primary-blue);
+    border: none;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  .mobile-login {
+    background: rgba(255,255,255,0.12);
+    text-align: center;
+    padding: 10px 12px;
+    border-radius: 8px;
+  }
+
+  /* Hide desktop links while mobile menu is used */
+  .navbar-links { display: none; }
+}
+
+@media (max-width: 480px) {
+  .navbar-brand {
+    font-size: 1rem;
+  }
+
+  .brand-icon {
+    font-size: 1.25rem;
+  }
+
+  .hero h1 {
+    font-size: 1.5rem;
+  }
+
+  .checker-header h2,
+  .result-header h2 {
+    font-size: 1.125rem;
+  }
+
+  .news-textarea {
+    min-height: 110px;
+  }
+
+  .feature-card {
+    padding: 16px;
+  }
+
+  .features {
+    gap: 12px;
+  }
+
+  .history-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .team-card-image img {
+    max-width: 100px;
+  }
+}
+
 
 .login-icon {
   font-size: 2.5rem;
@@ -2017,6 +2374,61 @@ body {
 
 .result-card.real .meter-fill {
   background: var(--success-green);
+}
+
+/* Small-screen adjustments for Analyze page */
+@media (max-width: 800px) {
+  .analyze-form-container {
+    padding: 18px;
+    margin: 0 12px;
+    max-width: calc(100% - 24px);
+  }
+
+  .input-tabs {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .tab-btn {
+    padding: 8px 12px;
+    font-size: 0.95rem;
+  }
+
+  .analyze-textarea {
+    min-height: 140px;
+    padding: 12px;
+  }
+
+  .url-input-wrapper {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .url-input-wrapper .url-icon {
+    align-self: flex-start;
+    margin-left: 4px;
+  }
+
+  .url-input-wrapper .url-input {
+    padding: 10px 12px;
+  }
+
+  .analyze-btn {
+    max-width: 100%;
+    width: 100%;
+    padding: 12px 16px;
+  }
+
+  .analyze-actions { flex-direction: column; gap: 12px; }
+}
+
+@media (max-width: 480px) {
+  .analyze-form-container { padding: 12px; }
+  .analyze-textarea { min-height: 110px; }
+  .tab-btn { padding: 8px 10px; font-size: 0.9rem; }
 }
 
 .confidence-value {
