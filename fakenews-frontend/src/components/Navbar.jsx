@@ -64,11 +64,11 @@ const Navbar = () => {
             About
           </Link>
           { <Link 
-            to="/team" 
-            className={`nav-link ${isActive('/team') ? 'active' : ''}`}
-          >
-            Team
-          </Link> }
+              to="/team" 
+              className={`nav-link ${isActive('/team') ? 'active' : ''}`}
+            >
+              Developer
+            </Link> }
         </div>
 
         {/* Login/Logout Button */}

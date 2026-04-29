@@ -10,40 +10,12 @@ import React from 'react';
 const teamMembers = [
   {
     id: 1,
-    name: 'Mishthi Arora',
-    role: 'Project Lead',
-    image: '/member%20images/member1.png',
-    bio: 'Passionate about fighting misinformation using technology.',
-    linkedin: '#',
-    github: '#',
-    email: 'member1@example.com'
-  },
-  {
-    id: 2,
-    name: 'Lovish Arora',
-    role: 'ML Engineer',
-    image: '/member%20images/member2.png',
-    bio: 'Specializes in NLP and machine learning models.',
-    linkedin: 'https://www.linkedin.com/in/lovish-arora-932a31288?utm_source=share_via&utm_content=profile&utm_medium=member_ios',
-    github: 'https://github.com/lovisharora23',
-    email: 'lovish.arora23@st.niituniversity.in'
-  },
-  {
-    id: 3,
-    name: 'Ujjwal Shrivastava',
-    role: 'Frontend Developer',
-    image: '/member%20images/member3.png',
-    bio: 'Creates intuitive and responsive user interfaces.',
-    linkedin: '#',
-    github: '#',
-    email: 'member3@example.com'
-  },
-  {
-    id: 4,
     name: 'Ishan Sharma',
-    role: 'Backend Developer',
+    role: 'Full Stack Developer',
     image: '/member%20images/member4.png',
-    bio: 'Builds robust APIs and manages data infrastructure.',
+    bio: 'Full Stack Developer proficient in frontend and backend technologies. Builds robust APIs, manages data infrastructure, and creates seamless user experiences.',
+    skills: ['React', 'Node.js', 'Express', 'MongoDB', 'Python', 'ML/NLP', 'Docker'],
+    expertise: ['Frontend Development', 'Backend APIs', 'Database Design', 'DevOps', 'ML Integration'],
     linkedin: 'https://www.linkedin.com/in/ishan-sharma-279b59253/',
     github: 'https://github.com/ishan-sharma23',
     email: 'ishan.sharma23@st.niituniversity.in'
@@ -53,19 +25,19 @@ const teamMembers = [
 const Team = () => {
   return (
     <div className="page team-page">
-      <div className="container">
-        {/* Header Section */}
-        <div className="team-header">
-          <h1>Meet Our Team</h1>
+      <div className="team-hero">
+        <div className="team-hero-content">
           <p className="team-subtitle">
-            The passionate individuals behind Fake News Detector working to combat misinformation
+            The developer crafting Fake News Detector to combat misinformation
           </p>
         </div>
+      </div>
 
-        {/* Team Grid */}
-        <div className="team-grid">
+      <div className="container">
+        {/* Team Grid - Centered for single person */}
+        <div className="team-grid team-grid-single">
           {teamMembers.map((member) => (
-            <div key={member.id} className="team-card">
+            <div key={member.id} className="team-card team-card-featured">
               <div className="team-card-image">
                 <img src={member.image} alt={member.name} />
               </div>
@@ -73,6 +45,28 @@ const Team = () => {
                 <h3 className="member-name">{member.name}</h3>
                 <span className="member-role">{member.role}</span>
                 <p className="member-bio">{member.bio}</p>
+
+                {/* Skills Section */}
+                <div className="member-skills">
+                  <p className="skills-label">Technical Skills</p>
+                  <div className="skills-container">
+                    {member.skills.map((skill, idx) => (
+                      <span key={idx} className="skill-badge">{skill}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Expertise Section */}
+                <div className="member-expertise">
+                  <p className="expertise-label">Areas of Expertise</p>
+                  <ul className="expertise-list">
+                    {member.expertise.map((exp, idx) => (
+                      <li key={idx}>{exp}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Social Links */}
                 <div className="member-socials">
                   <a href={member.linkedin} className="social-link" title="LinkedIn" target="_blank" rel="noopener noreferrer">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -94,16 +88,6 @@ const Team = () => {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Project Info Section */}
-        <div className="project-info">
-          <h2>About This Project</h2>
-          <p>
-            Fake News Detector is a project aimed at combating misinformation using 
-            advanced AI and Natural Language Processing techniques. Our team is dedicated 
-            to creating tools that help users identify potentially misleading content.
-          </p>
         </div>
       </div>
     </div>
